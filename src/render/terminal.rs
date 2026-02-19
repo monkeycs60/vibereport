@@ -140,8 +140,9 @@ pub fn render_multi(report: &crate::scanner::multi_report::MultiReport) {
     for repo in &sorted {
         let ai_pct = format!("{:.0}%", repo.score.ai_ratio * 100.0);
         let grade = &repo.score.grade;
-        let roast_short = if repo.score.roast.len() > 35 {
-            format!("\"{}...\"", &repo.score.roast[..32])
+        let roast_short = if repo.score.roast.chars().count() > 35 {
+            let truncated: String = repo.score.roast.chars().take(32).collect();
+            format!("\"{}...\"", truncated)
         } else {
             format!("\"{}\"", repo.score.roast)
         };
