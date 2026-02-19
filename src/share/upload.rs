@@ -28,7 +28,9 @@ const API_URL: &str = "https://api.vibereport.dev";
 /// Upload a report to the vibereport.dev API.
 /// Returns the share URL and leaderboard rank.
 pub fn upload_report(payload: &ReportPayload) -> Result<ShareResponse, Box<dyn std::error::Error>> {
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()?;
     let resp = client
         .post(format!("{}/api/reports", API_URL))
         .json(payload)
