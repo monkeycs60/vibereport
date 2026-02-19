@@ -51,6 +51,13 @@ fn main() {
     // ── Step 3: Calculate vibe score ──
     let vibe_score = score::calculator::calculate(&git_stats, &project_stats);
 
+    // ── Repo name (used by both terminal and SVG output) ──
+    let repo_name = path
+        .canonicalize()
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+        .unwrap_or_else(|| cli.path.clone());
+
     // ── Step 4: Output ──
     if cli.json {
         // JSON output
@@ -69,10 +76,7 @@ fn main() {
             .collect();
 
         let output = serde_json::json!({
-            "repo": path.canonicalize()
-                .ok()
-                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
-                .unwrap_or_else(|| cli.path.clone()),
+            "repo": &repo_name,
             "ai_ratio": vibe_score.ai_ratio,
             "human_ratio": 1.0 - vibe_score.ai_ratio,
             "score": vibe_score.points,
@@ -101,12 +105,17 @@ fn main() {
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
     } else {
         // Beautiful terminal output
-        let repo_name = path
-            .canonicalize()
-            .ok()
-            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
-            .unwrap_or_else(|| cli.path.clone());
-
         render::terminal::render_with_name(&git_stats, &project_stats, &vibe_score, &repo_name);
+    }
+
+    // ── SVG export ──
+    if let Some(svg_path) = &cli.svg {
+        let svg_content =
+            render::svg::render_svg(&git_stats, &project_stats, &vibe_score, &repo_name);
+        std::fs::write(svg_path, &svg_content).unwrap_or_else(|e| {
+            eprintln!("Error writing SVG: {}", e);
+            std::process::exit(1);
+        });
+        eprintln!("SVG saved to {}", svg_path);
     }
 }

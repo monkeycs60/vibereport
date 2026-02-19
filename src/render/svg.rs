@@ -1,0 +1,522 @@
+use crate::git::parser::GitStats;
+use crate::project::ProjectStats;
+use crate::score::calculator::VibeScore;
+
+// ── Tokyo Night Color Palette ──
+const BG: &str = "#1a1b26";
+const BORDER: &str = "#7aa2f7";
+const WHITE: &str = "#c0caf5";
+const DIMMED: &str = "#565f89";
+const DOTS: &str = "#3b3e53";
+const YELLOW: &str = "#e0af68";
+const GREEN: &str = "#9ece6a";
+const BAR_EMPTY: &str = "#3b3e53";
+const RED: &str = "#f7768e";
+
+const WIDTH: usize = 600;
+const PADDING: usize = 32;
+const FONT_FAMILY: &str = r#""JetBrains Mono","Fira Code","Cascadia Code",monospace"#;
+const FONT_SIZE: usize = 13;
+const LINE_HEIGHT: usize = 22;
+
+/// Render the vibe report as an SVG string.
+pub fn render_svg(
+    git: &GitStats,
+    project: &ProjectStats,
+    score: &VibeScore,
+    repo_name: &str,
+) -> String {
+    // Pre-compute content to determine dynamic height
+    let mut y: usize = PADDING + 10;
+    let mut lines = Vec::new();
+
+    // ── Title ──
+    lines.push(SvgLine::CenteredBold {
+        text: "VIBE REPORT".to_string(),
+        y,
+        color: WHITE.to_string(),
+    });
+    y += LINE_HEIGHT;
+    lines.push(SvgLine::CenteredNormal {
+        text: repo_name.to_string(),
+        y,
+        color: DIMMED.to_string(),
+    });
+    y += LINE_HEIGHT + 8;
+
+    // ── Separator ──
+    lines.push(SvgLine::Separator { y });
+    y += LINE_HEIGHT;
+
+    // ── AI vs Human ──
+    lines.push(kv_line("AI-authored", &format!("{:.0}%", score.ai_ratio * 100.0), y));
+    y += LINE_HEIGHT;
+    lines.push(kv_line(
+        "Human-authored",
+        &format!("{:.0}%", (1.0 - score.ai_ratio) * 100.0),
+        y,
+    ));
+    y += LINE_HEIGHT;
+    lines.push(kv_line("Total commits", &git.total_commits.to_string(), y));
+    y += LINE_HEIGHT + 4;
+
+    // ── AI Tools ──
+    if !git.ai_tools.is_empty() {
+        lines.push(SvgLine::Section {
+            text: "AI TOOLS".to_string(),
+            y,
+        });
+        y += LINE_HEIGHT;
+        let mut tools: Vec<_> = git.ai_tools.iter().collect();
+        tools.sort_by(|a, b| b.1.cmp(&a.1));
+        for (tool, count) in &tools {
+            let pct = (*count as f64 / git.total_commits.max(1) as f64) * 100.0;
+            lines.push(kv_line(
+                &tool.to_string(),
+                &format!("{} ({:.0}%)", count, pct),
+                y,
+            ));
+            y += LINE_HEIGHT;
+        }
+        y += 4;
+    }
+
+    // ── Project Stats ──
+    lines.push(SvgLine::Section {
+        text: "PROJECT".to_string(),
+        y,
+    });
+    y += LINE_HEIGHT;
+
+    let deps_str = if project.deps.total > 0 {
+        format!("{} ({})", project.deps.total, project.deps.manager)
+    } else {
+        "0".to_string()
+    };
+    lines.push(kv_line("Dependencies", &deps_str, y));
+    y += LINE_HEIGHT;
+
+    let test_str = if project.tests.has_tests {
+        let fw = if project.tests.frameworks.is_empty() {
+            String::new()
+        } else {
+            format!(" [{}]", project.tests.frameworks.join(", "))
+        };
+        format!("{} files{}", project.tests.test_files_count, fw)
+    } else {
+        "none".to_string()
+    };
+    lines.push(kv_line("Tests", &test_str, y));
+    y += LINE_HEIGHT;
+
+    lines.push(kv_line("Lines of code", &fmt_num(project.languages.total_lines), y));
+    y += LINE_HEIGHT + 4;
+
+    // ── Languages ──
+    let mut langs: Vec<_> = project.languages.languages.iter().collect();
+    langs.sort_by(|a, b| b.1.cmp(a.1));
+    if !langs.is_empty() {
+        lines.push(SvgLine::Section {
+            text: "LANGUAGES".to_string(),
+            y,
+        });
+        y += LINE_HEIGHT;
+        for (lang, line_count) in langs.iter().take(5) {
+            let pct =
+                (**line_count as f64 / project.languages.total_lines.max(1) as f64) * 100.0;
+            lines.push(SvgLine::LangBar {
+                lang: lang.to_string(),
+                pct,
+                y,
+            });
+            y += LINE_HEIGHT;
+        }
+        y += 4;
+    }
+
+    // ── Security ──
+    if project.security.env_in_git {
+        lines.push(SvgLine::Section {
+            text: "SECURITY".to_string(),
+            y,
+        });
+        y += LINE_HEIGHT;
+        lines.push(SvgLine::Warning {
+            text: ".env committed to git!".to_string(),
+            y,
+        });
+        y += LINE_HEIGHT + 4;
+    }
+
+    // ── Separator ──
+    lines.push(SvgLine::Separator { y });
+    y += LINE_HEIGHT;
+
+    // ── Score ──
+    lines.push(SvgLine::CenteredBold {
+        text: format!("VIBE SCORE: {} ({}pts)", score.grade, score.points),
+        y,
+        color: YELLOW.to_string(),
+    });
+    y += LINE_HEIGHT;
+
+    // ── Roast ──
+    lines.push(SvgLine::Roast {
+        text: format!("\"{}\"", score.roast),
+        y,
+    });
+    y += LINE_HEIGHT + 8;
+
+    // ── Footer ──
+    lines.push(SvgLine::CenteredNormal {
+        text: "generated by vibereport.dev".to_string(),
+        y,
+        color: DOTS.to_string(),
+    });
+    y += LINE_HEIGHT;
+
+    let total_height = y + PADDING;
+    let content_width = WIDTH - 2 * PADDING;
+    let cx = WIDTH / 2; // center x
+
+    // ── Build SVG ──
+    let mut svg = String::new();
+    svg.push_str(&format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{total_height}" viewBox="0 0 {WIDTH} {total_height}">"#,
+    ));
+
+    // Background
+    svg.push_str(&format!(
+        r#"<rect width="{WIDTH}" height="{total_height}" rx="12" fill="{BG}"/>"#,
+    ));
+
+    // Border
+    svg.push_str(&format!(
+        r#"<rect x="8" y="8" width="{}" height="{}" rx="8" fill="none" stroke="{BORDER}" stroke-width="1.5" opacity="0.5"/>"#,
+        WIDTH - 16,
+        total_height - 16,
+    ));
+
+    // Render each line
+    for line in &lines {
+        match line {
+            SvgLine::CenteredBold { text, y, color } => {
+                svg.push_str(&format!(
+                    r#"<text x="{cx}" y="{y}" text-anchor="middle" font-family={FONT_FAMILY} font-size="{FONT_SIZE}" font-weight="bold" fill="{color}">{}</text>"#,
+                    xml_escape(text),
+                ));
+            }
+            SvgLine::CenteredNormal { text, y, color } => {
+                svg.push_str(&format!(
+                    r#"<text x="{cx}" y="{y}" text-anchor="middle" font-family={FONT_FAMILY} font-size="{}" fill="{color}">{}</text>"#,
+                    FONT_SIZE - 1,
+                    xml_escape(text),
+                ));
+            }
+            SvgLine::Separator { y } => {
+                let x1 = PADDING;
+                let x2 = WIDTH - PADDING;
+                svg.push_str(&format!(
+                    r#"<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" stroke="{BORDER}" stroke-width="0.5" opacity="0.3"/>"#,
+                ));
+            }
+            SvgLine::Section { text, y } => {
+                let x = PADDING + 4;
+                svg.push_str(&format!(
+                    r#"<text x="{x}" y="{y}" font-family={FONT_FAMILY} font-size="{}" font-weight="bold" fill="{BORDER}" opacity="0.8">{}</text>"#,
+                    FONT_SIZE - 1,
+                    xml_escape(text),
+                ));
+            }
+            SvgLine::KeyValue { label, value, y } => {
+                let lx = PADDING + 12;
+                // Right-align value
+                let vx = WIDTH - PADDING - 12;
+                // Label (dimmed)
+                svg.push_str(&format!(
+                    r#"<text x="{lx}" y="{y}" font-family={FONT_FAMILY} font-size="{FONT_SIZE}" fill="{DIMMED}">{}</text>"#,
+                    xml_escape(label),
+                ));
+                // Dots
+                let dots_x1 = lx + label.len() * 8 + 8;
+                let dots_x2 = vx - value.len() * 8 - 8;
+                if dots_x2 > dots_x1 {
+                    let dot_y = *y - 4;
+                    let mut dx = dots_x1;
+                    while dx < dots_x2 {
+                        svg.push_str(&format!(
+                            r#"<circle cx="{dx}" cy="{dot_y}" r="1" fill="{DOTS}"/>"#,
+                        ));
+                        dx += 6;
+                    }
+                }
+                // Value (white bold)
+                svg.push_str(&format!(
+                    r#"<text x="{vx}" y="{y}" text-anchor="end" font-family={FONT_FAMILY} font-size="{FONT_SIZE}" font-weight="bold" fill="{WHITE}">{}</text>"#,
+                    xml_escape(value),
+                ));
+            }
+            SvgLine::LangBar { lang, pct, y } => {
+                let lx = PADDING + 12;
+                let bar_x = PADDING + 140;
+                let bar_w = content_width - 140 - 60;
+                let bar_h: usize = 10;
+                let bar_y = *y - bar_h;
+                let filled_w = ((pct / 100.0) * bar_w as f64).round() as usize;
+
+                // Language name
+                svg.push_str(&format!(
+                    r#"<text x="{lx}" y="{y}" font-family={FONT_FAMILY} font-size="{FONT_SIZE}" fill="{WHITE}">{}</text>"#,
+                    xml_escape(lang),
+                ));
+                // Empty bar background
+                svg.push_str(&format!(
+                    r#"<rect x="{bar_x}" y="{bar_y}" width="{bar_w}" height="{bar_h}" rx="3" fill="{BAR_EMPTY}"/>"#,
+                ));
+                // Filled bar
+                if filled_w > 0 {
+                    svg.push_str(&format!(
+                        r#"<rect x="{bar_x}" y="{bar_y}" width="{filled_w}" height="{bar_h}" rx="3" fill="{GREEN}"/>"#,
+                    ));
+                }
+                // Percentage
+                let pct_x = WIDTH - PADDING - 12;
+                svg.push_str(&format!(
+                    r#"<text x="{pct_x}" y="{y}" text-anchor="end" font-family={FONT_FAMILY} font-size="{}" fill="{DIMMED}">{:.1}%</text>"#,
+                    FONT_SIZE - 1,
+                    pct,
+                ));
+            }
+            SvgLine::Warning { text, y } => {
+                let x = PADDING + 12;
+                svg.push_str(&format!(
+                    r#"<text x="{x}" y="{y}" font-family={FONT_FAMILY} font-size="{FONT_SIZE}" font-weight="bold" fill="{RED}">!! {}</text>"#,
+                    xml_escape(text),
+                ));
+            }
+            SvgLine::Roast { text, y } => {
+                svg.push_str(&format!(
+                    r#"<text x="{cx}" y="{y}" text-anchor="middle" font-family={FONT_FAMILY} font-size="{}" font-style="italic" fill="{DIMMED}">{}</text>"#,
+                    FONT_SIZE - 1,
+                    xml_escape(text),
+                ));
+            }
+        }
+    }
+
+    svg.push_str("</svg>");
+    svg
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Internal types
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+enum SvgLine {
+    CenteredBold {
+        text: String,
+        y: usize,
+        color: String,
+    },
+    CenteredNormal {
+        text: String,
+        y: usize,
+        color: String,
+    },
+    Separator {
+        y: usize,
+    },
+    Section {
+        text: String,
+        y: usize,
+    },
+    KeyValue {
+        label: String,
+        value: String,
+        y: usize,
+    },
+    LangBar {
+        lang: String,
+        pct: f64,
+        y: usize,
+    },
+    Warning {
+        text: String,
+        y: usize,
+    },
+    Roast {
+        text: String,
+        y: usize,
+    },
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Helpers
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+fn kv_line(label: &str, value: &str, y: usize) -> SvgLine {
+    SvgLine::KeyValue {
+        label: label.to_string(),
+        value: value.to_string(),
+        y,
+    }
+}
+
+fn xml_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
+fn fmt_num(n: usize) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.1}K", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Tests
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::git::ai_detect::AiTool;
+
+    fn mock_git_stats(ai_ratio: f64) -> GitStats {
+        let ai_commits = (100.0 * ai_ratio) as usize;
+        GitStats {
+            total_commits: 100,
+            ai_commits,
+            human_commits: 100 - ai_commits,
+            ai_ratio,
+            ai_tools: if ai_ratio > 0.0 {
+                vec![(AiTool::ClaudeCode, ai_commits)]
+            } else {
+                vec![]
+            },
+            commits: vec![],
+            first_commit_date: None,
+            last_commit_date: None,
+        }
+    }
+
+    fn mock_project_stats() -> ProjectStats {
+        let mut languages = std::collections::HashMap::new();
+        languages.insert("Rust".to_string(), 3000);
+        languages.insert("TypeScript".to_string(), 1500);
+        languages.insert("CSS".to_string(), 500);
+
+        ProjectStats {
+            deps: crate::project::deps::DepsInfo {
+                total: 42,
+                manager: "cargo".into(),
+            },
+            tests: crate::project::tests_detect::TestsInfo {
+                has_tests: true,
+                test_files_count: 8,
+                frameworks: vec!["cargo test".to_string()],
+            },
+            languages: crate::project::languages::LanguageStats {
+                languages,
+                total_lines: 5000,
+            },
+            security: crate::project::security::SecurityInfo::default(),
+        }
+    }
+
+    fn mock_vibe_score(ai_ratio: f64) -> VibeScore {
+        VibeScore {
+            grade: "B+".to_string(),
+            points: 65,
+            roast: "Your code writes itself... literally.".to_string(),
+            ai_ratio,
+        }
+    }
+
+    #[test]
+    fn test_svg_contains_required_elements() {
+        let git = mock_git_stats(0.6);
+        let project = mock_project_stats();
+        let score = mock_vibe_score(0.6);
+        let svg = render_svg(&git, &project, &score, "my-project");
+
+        assert!(svg.contains("<svg"), "SVG should contain opening <svg tag");
+        assert!(svg.contains("</svg>"), "SVG should contain closing </svg> tag");
+        assert!(svg.contains("VIBE REPORT"), "SVG should contain title");
+        assert!(svg.contains("my-project"), "SVG should contain repo name");
+        assert!(svg.contains("B+"), "SVG should contain grade");
+        assert!(svg.contains("65pts"), "SVG should contain points");
+        assert!(svg.contains("vibereport.dev"), "SVG should contain footer");
+    }
+
+    #[test]
+    fn test_svg_valid_dimensions() {
+        let git = mock_git_stats(0.5);
+        let project = mock_project_stats();
+        let score = mock_vibe_score(0.5);
+        let svg = render_svg(&git, &project, &score, "test-repo");
+
+        assert!(svg.contains(r#"width="600""#), "SVG should have width attribute");
+        assert!(svg.contains("height="), "SVG should have height attribute");
+        assert!(svg.contains("viewBox="), "SVG should have viewBox attribute");
+    }
+
+    #[test]
+    fn test_svg_with_no_ai() {
+        let git = mock_git_stats(0.0);
+        let project = mock_project_stats();
+        let score = VibeScore {
+            grade: "F".to_string(),
+            points: 12,
+            roast: "All human, all the time.".to_string(),
+            ai_ratio: 0.0,
+        };
+        let svg = render_svg(&git, &project, &score, "human-repo");
+
+        assert!(svg.contains("0%"), "Should show 0% AI-authored");
+        assert!(svg.contains("100%"), "Should show 100% human-authored");
+        assert!(svg.contains("F"), "Should contain grade F");
+        // Should NOT contain AI TOOLS section since there are none
+        assert!(!svg.contains("AI TOOLS"), "Should not have AI TOOLS section");
+    }
+
+    #[test]
+    fn test_svg_with_security_warning() {
+        let git = mock_git_stats(0.3);
+        let mut project = mock_project_stats();
+        project.security.env_in_git = true;
+        let score = mock_vibe_score(0.3);
+        let svg = render_svg(&git, &project, &score, "leaky-repo");
+
+        assert!(svg.contains("SECURITY"), "Should contain SECURITY section");
+        assert!(
+            svg.contains(".env committed to git!"),
+            "Should contain .env warning"
+        );
+        assert!(
+            svg.contains(RED),
+            "Warning should use red color"
+        );
+    }
+
+    #[test]
+    fn test_xml_escape() {
+        assert_eq!(xml_escape("<script>"), "&lt;script&gt;");
+        assert_eq!(xml_escape("a & b"), "a &amp; b");
+        assert_eq!(xml_escape(r#"he said "hi""#), "he said &quot;hi&quot;");
+    }
+
+    #[test]
+    fn test_fmt_num() {
+        assert_eq!(fmt_num(500), "500");
+        assert_eq!(fmt_num(1500), "1.5K");
+        assert_eq!(fmt_num(1_500_000), "1.5M");
+    }
+}
