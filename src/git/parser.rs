@@ -67,7 +67,10 @@ pub fn analyze_repo(path: &Path) -> Result<GitStats, Box<dyn std::error::Error>>
     }
 
     // Count AI tools
-    let ai_commits = commits.iter().filter(|c| c.ai_tool != AiTool::Human).count();
+    let ai_commits = commits
+        .iter()
+        .filter(|c| c.ai_tool != AiTool::Human)
+        .count();
     let human_commits = commits.len() - ai_commits;
     let ai_ratio = if commits.is_empty() {
         0.0

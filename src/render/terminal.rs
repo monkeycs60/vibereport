@@ -31,7 +31,10 @@ pub fn render_with_name(
 
     // ── AI vs Human ──
     kv("AI-authored", &format!("{:.0}%", score.ai_ratio * 100.0));
-    kv("Human-authored", &format!("{:.0}%", (1.0 - score.ai_ratio) * 100.0));
+    kv(
+        "Human-authored",
+        &format!("{:.0}%", (1.0 - score.ai_ratio) * 100.0),
+    );
     kv("Total commits", &git.total_commits.to_string());
     blank();
 
@@ -50,7 +53,10 @@ pub fn render_with_name(
     // ── Project Stats ──
     section("PROJECT");
     if project.deps.total > 0 {
-        kv("Dependencies", &format!("{} ({})", project.deps.total, project.deps.manager));
+        kv(
+            "Dependencies",
+            &format!("{} ({})", project.deps.total, project.deps.manager),
+        );
     } else {
         kv("Dependencies", "0");
     }
@@ -122,21 +128,33 @@ fn display_width(s: &str) -> usize {
             // Variation selectors / zero-width joiners / combining marks
             '\u{FE00}'..='\u{FE0F}' | '\u{200D}' | '\u{20E3}' => {}
             // Common emoji ranges (simplified — covers most we use)
-            '\u{1F300}'..='\u{1F9FF}' | '\u{2600}'..='\u{27BF}' |
-            '\u{2B50}'..='\u{2B55}' => { w += 2; }
+            '\u{1F300}'..='\u{1F9FF}' | '\u{2600}'..='\u{27BF}' | '\u{2B50}'..='\u{2B55}' => {
+                w += 2;
+            }
             // Regional indicators, tags, etc
-            '\u{1F1E0}'..='\u{1F1FF}' => { w += 2; }
+            '\u{1F1E0}'..='\u{1F1FF}' => {
+                w += 2;
+            }
             // Box-drawing, regular ASCII, Latin
-            _ if ch.is_ascii() => { w += 1; }
+            _ if ch.is_ascii() => {
+                w += 1;
+            }
             // CJK characters
-            '\u{2E80}'..='\u{9FFF}' | '\u{F900}'..='\u{FAFF}' |
-            '\u{FE30}'..='\u{FE4F}' => { w += 2; }
+            '\u{2E80}'..='\u{9FFF}' | '\u{F900}'..='\u{FAFF}' | '\u{FE30}'..='\u{FE4F}' => {
+                w += 2;
+            }
             // Full-width forms
-            '\u{FF01}'..='\u{FF60}' | '\u{FFE0}'..='\u{FFE6}' => { w += 2; }
+            '\u{FF01}'..='\u{FF60}' | '\u{FFE0}'..='\u{FFE6}' => {
+                w += 2;
+            }
             // Box-drawing characters (U+2500..U+257F) = 1 col
-            '\u{2500}'..='\u{257F}' => { w += 1; }
+            '\u{2500}'..='\u{257F}' => {
+                w += 1;
+            }
             // Most other Unicode = 1 col (Latin extended, etc.)
-            _ => { w += 1; }
+            _ => {
+                w += 1;
+            }
         }
     }
     w
@@ -150,19 +168,33 @@ fn display_width(s: &str) -> usize {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 fn border_top() {
-    println!("  {}", format!("\u{256D}{}\u{256E}", "\u{2500}".repeat(W)).cyan());
+    println!(
+        "  {}",
+        format!("\u{256D}{}\u{256E}", "\u{2500}".repeat(W)).cyan()
+    );
 }
 
 fn border_bot() {
-    println!("  {}", format!("\u{2570}{}\u{256F}", "\u{2500}".repeat(W)).cyan());
+    println!(
+        "  {}",
+        format!("\u{2570}{}\u{256F}", "\u{2500}".repeat(W)).cyan()
+    );
 }
 
 fn separator() {
-    println!("  {}", format!("\u{251C}{}\u{2524}", "\u{2500}".repeat(W)).cyan());
+    println!(
+        "  {}",
+        format!("\u{251C}{}\u{2524}", "\u{2500}".repeat(W)).cyan()
+    );
 }
 
 fn blank() {
-    println!("  {}{}{}", "\u{2502}".cyan(), " ".repeat(W), "\u{2502}".cyan());
+    println!(
+        "  {}{}{}",
+        "\u{2502}".cyan(),
+        " ".repeat(W),
+        "\u{2502}".cyan()
+    );
 }
 
 // ── Content line builders ─────────────────────────────────────────
@@ -171,7 +203,8 @@ fn center_bold(text: &str) {
     let dw = display_width(text);
     let lp = (W.saturating_sub(dw)) / 2;
     let rp = W.saturating_sub(dw).saturating_sub(lp);
-    println!("  {}{}{}{}{}",
+    println!(
+        "  {}{}{}{}{}",
         "\u{2502}".cyan(),
         " ".repeat(lp),
         text.bold().white(),
@@ -184,7 +217,8 @@ fn center_dimmed(text: &str) {
     let dw = display_width(text);
     let lp = (W.saturating_sub(dw)) / 2;
     let rp = W.saturating_sub(dw).saturating_sub(lp);
-    println!("  {}{}{}{}{}",
+    println!(
+        "  {}{}{}{}{}",
         "\u{2502}".cyan(),
         " ".repeat(lp),
         text.dimmed(),
@@ -198,7 +232,8 @@ fn section(label: &str) {
     let prefix_display = "   \u{2500}\u{2500} ";
     let dw = display_width(prefix_display) + display_width(label);
     let rp = W.saturating_sub(dw);
-    println!("  {}{}{}{}{}",
+    println!(
+        "  {}{}{}{}{}",
         "\u{2502}".cyan(),
         format!("   \u{2500}\u{2500} {}", label).cyan().bold(),
         " ".repeat(rp),
@@ -218,7 +253,8 @@ fn kv(label: &str, value: &str) {
     let fixed = ml + label_w + gap + gap + value_w + mr;
     let ndots = W.saturating_sub(fixed).max(1);
 
-    println!("  {}{}{}  {}  {}{}{}",
+    println!(
+        "  {}{}{}  {}  {}{}{}",
         "\u{2502}".cyan(),
         " ".repeat(ml),
         label.dimmed(),
@@ -238,7 +274,8 @@ fn kv_indent(label: &str, value: &str) {
     let fixed = ml + label_w + gap + gap + value_w + mr;
     let ndots = W.saturating_sub(fixed).max(1);
 
-    println!("  {}{}{}  {}  {}{}{}",
+    println!(
+        "  {}{}{}  {}  {}{}{}",
         "\u{2502}".cyan(),
         " ".repeat(ml),
         label.dimmed(),
@@ -271,7 +308,8 @@ fn lang_row(lang: &str, pct: f64) {
     let lang_dw = display_width(lang);
     let lang_pad = lang_col.saturating_sub(lang_dw);
 
-    println!("  {}{}{}{} {}{} {}{}{}",
+    println!(
+        "  {}{}{}{} {}{} {}{}{}",
         "\u{2502}".cyan(),
         " ".repeat(ml),
         lang.white(),
@@ -288,7 +326,8 @@ fn warning_line(msg: &str) {
     let prefix_dw = 3 + 3; // "   " + "!! "
     let msg_dw = display_width(msg);
     let rp = W.saturating_sub(prefix_dw + msg_dw);
-    println!("  {}{}{}{}{}{}",
+    println!(
+        "  {}{}{}{}{}{}",
         "\u{2502}".cyan(),
         "   ",
         "!! ".bright_red().bold(),
@@ -303,7 +342,8 @@ fn score_line(grade: &str, points: u32) {
     let dw = display_width(&text);
     let lp = (W.saturating_sub(dw)) / 2;
     let rp = W.saturating_sub(dw).saturating_sub(lp);
-    println!("  {}{}{}{}{}",
+    println!(
+        "  {}{}{}{}{}",
         "\u{2502}".cyan(),
         " ".repeat(lp),
         text.bold().yellow(),
@@ -317,7 +357,8 @@ fn roast_line(roast: &str) {
     let dw = display_width(&text);
     let lp = (W.saturating_sub(dw)) / 2;
     let rp = W.saturating_sub(dw).saturating_sub(lp);
-    println!("  {}{}{}{}{}",
+    println!(
+        "  {}{}{}{}{}",
         "\u{2502}".cyan(),
         " ".repeat(lp),
         text.italic().dimmed(),
@@ -342,15 +383,15 @@ fn fmt_num(n: usize) -> String {
 
 fn emoji_for_grade(grade: &str) -> &'static str {
     match grade {
-        "S"  => "\u{1F525}\u{1F525}\u{1F525}",
+        "S" => "\u{1F525}\u{1F525}\u{1F525}",
         "A+" => "\u{1F525}\u{1F525}",
-        "A"  => "\u{1F525}",
+        "A" => "\u{1F525}",
         "B+" => "\u{26A1}",
-        "B"  => "\u{1F916}",
+        "B" => "\u{1F916}",
         "C+" => "\u{1F6E0}\u{FE0F}",
-        "C"  => "\u{1F331}",
-        "D"  => "\u{270D}\u{FE0F}",
-        _    => "\u{1F9D1}\u{200D}\u{1F4BB}",
+        "C" => "\u{1F331}",
+        "D" => "\u{270D}\u{FE0F}",
+        _ => "\u{1F9D1}\u{200D}\u{1F4BB}",
     }
 }
 
@@ -396,7 +437,7 @@ mod tests {
     #[test]
     fn display_width_emoji() {
         assert_eq!(display_width("\u{1F525}"), 2); // fire
-        assert_eq!(display_width("\u{26A1}"), 2);  // lightning
+        assert_eq!(display_width("\u{26A1}"), 2); // lightning
         assert_eq!(display_width("\u{270D}\u{FE0F}"), 2); // writing hand + VS16
     }
 }

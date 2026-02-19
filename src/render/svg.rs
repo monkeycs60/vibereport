@@ -49,7 +49,11 @@ pub fn render_svg(
     y += LINE_HEIGHT;
 
     // ── AI vs Human ──
-    lines.push(kv_line("AI-authored", &format!("{:.0}%", score.ai_ratio * 100.0), y));
+    lines.push(kv_line(
+        "AI-authored",
+        &format!("{:.0}%", score.ai_ratio * 100.0),
+        y,
+    ));
     y += LINE_HEIGHT;
     lines.push(kv_line(
         "Human-authored",
@@ -109,7 +113,11 @@ pub fn render_svg(
     lines.push(kv_line("Tests", &test_str, y));
     y += LINE_HEIGHT;
 
-    lines.push(kv_line("Lines of code", &fmt_num(project.languages.total_lines), y));
+    lines.push(kv_line(
+        "Lines of code",
+        &fmt_num(project.languages.total_lines),
+        y,
+    ));
     y += LINE_HEIGHT + 4;
 
     // ── Languages ──
@@ -122,8 +130,7 @@ pub fn render_svg(
         });
         y += LINE_HEIGHT;
         for (lang, line_count) in langs.iter().take(5) {
-            let pct =
-                (**line_count as f64 / project.languages.total_lines.max(1) as f64) * 100.0;
+            let pct = (**line_count as f64 / project.languages.total_lines.max(1) as f64) * 100.0;
             lines.push(SvgLine::LangBar {
                 lang: lang.to_string(),
                 pct,
@@ -448,7 +455,10 @@ mod tests {
         let svg = render_svg(&git, &project, &score, "my-project");
 
         assert!(svg.contains("<svg"), "SVG should contain opening <svg tag");
-        assert!(svg.contains("</svg>"), "SVG should contain closing </svg> tag");
+        assert!(
+            svg.contains("</svg>"),
+            "SVG should contain closing </svg> tag"
+        );
         assert!(svg.contains("VIBE REPORT"), "SVG should contain title");
         assert!(svg.contains("my-project"), "SVG should contain repo name");
         assert!(svg.contains("B+"), "SVG should contain grade");
@@ -463,9 +473,15 @@ mod tests {
         let score = mock_vibe_score(0.5);
         let svg = render_svg(&git, &project, &score, "test-repo");
 
-        assert!(svg.contains(r#"width="600""#), "SVG should have width attribute");
+        assert!(
+            svg.contains(r#"width="600""#),
+            "SVG should have width attribute"
+        );
         assert!(svg.contains("height="), "SVG should have height attribute");
-        assert!(svg.contains("viewBox="), "SVG should have viewBox attribute");
+        assert!(
+            svg.contains("viewBox="),
+            "SVG should have viewBox attribute"
+        );
     }
 
     #[test]
@@ -484,7 +500,10 @@ mod tests {
         assert!(svg.contains("100%"), "Should show 100% human-authored");
         assert!(svg.contains("F"), "Should contain grade F");
         // Should NOT contain AI TOOLS section since there are none
-        assert!(!svg.contains("AI TOOLS"), "Should not have AI TOOLS section");
+        assert!(
+            !svg.contains("AI TOOLS"),
+            "Should not have AI TOOLS section"
+        );
     }
 
     #[test]
@@ -500,10 +519,7 @@ mod tests {
             svg.contains(".env committed to git!"),
             "Should contain .env warning"
         );
-        assert!(
-            svg.contains(RED),
-            "Warning should use red color"
-        );
+        assert!(svg.contains(RED), "Warning should use red color");
     }
 
     #[test]

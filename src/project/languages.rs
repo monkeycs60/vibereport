@@ -94,8 +94,16 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let src = dir.path().join("src");
         fs::create_dir_all(&src).unwrap();
-        fs::write(src.join("main.rs"), "fn main() {\n    println!(\"hello\");\n}\n").unwrap();
-        fs::write(src.join("lib.rs"), "pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n").unwrap();
+        fs::write(
+            src.join("main.rs"),
+            "fn main() {\n    println!(\"hello\");\n}\n",
+        )
+        .unwrap();
+        fs::write(
+            src.join("lib.rs"),
+            "pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n",
+        )
+        .unwrap();
 
         let stats = count_languages(dir.path());
         assert_eq!(stats.languages.get("Rust"), Some(&6));

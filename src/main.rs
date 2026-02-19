@@ -7,7 +7,11 @@ use clap::Parser;
 use std::path::Path;
 
 #[derive(Parser, Debug)]
-#[command(name = "vibereport", version, about = "The Spotify Wrapped for your code")]
+#[command(
+    name = "vibereport",
+    version,
+    about = "The Spotify Wrapped for your code"
+)]
 struct Cli {
     /// Path to git repo, directory of repos, or github:user/repo
     #[arg(default_value = ".")]
