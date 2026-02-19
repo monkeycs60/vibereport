@@ -1,4 +1,5 @@
 mod git;
+mod project;
 
 use clap::Parser;
 use std::path::Path;
