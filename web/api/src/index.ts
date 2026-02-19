@@ -14,6 +14,12 @@ app.use('/*', cors({
   origin: ['https://vibereport.dev', 'http://localhost:4321'],
 }))
 
+// Global error handler
+app.onError((err, c) => {
+  console.error('API Error:', err.message)
+  return c.json({ error: 'Internal server error' }, 500)
+})
+
 function getDb(env: Bindings) {
   return createClient({
     url: env.TURSO_URL,
@@ -22,12 +28,34 @@ function getDb(env: Bindings) {
 }
 
 function generateId(): string {
-  return Math.random().toString(36).substring(2, 10)
+  const bytes = new Uint8Array(12)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
 }
 
 // ── POST /api/reports — Submit a new report ──
 app.post('/api/reports', async (c) => {
-  const body = await c.req.json()
+  let body: Record<string, unknown>
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  // Validate required fields
+  if (typeof body.ai_ratio !== 'number' || body.ai_ratio < 0 || body.ai_ratio > 1) {
+    return c.json({ error: 'ai_ratio must be a number between 0 and 1' }, 400)
+  }
+  if (typeof body.score_points !== 'number' || !Number.isInteger(body.score_points) || body.score_points < 0 || body.score_points > 100) {
+    return c.json({ error: 'score_points must be an integer between 0 and 100' }, 400)
+  }
+  if (typeof body.score_grade !== 'string' || body.score_grade.length > 5) {
+    return c.json({ error: 'Invalid score_grade' }, 400)
+  }
+  if (typeof body.roast !== 'string' || body.roast.length === 0 || body.roast.length > 500) {
+    return c.json({ error: 'roast must be a string under 500 chars' }, 400)
+  }
+
   const db = getDb(c.env)
   const id = generateId()
 
@@ -36,33 +64,29 @@ app.post('/api/reports', async (c) => {
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       id,
-      body.github_username || null,
-      body.repo_name || null,
+      (typeof body.github_username === 'string' ? body.github_username : null),
+      (typeof body.repo_name === 'string' ? body.repo_name : null),
       body.ai_ratio,
-      body.ai_tool || null,
+      (typeof body.ai_tool === 'string' ? body.ai_tool : null),
       body.score_points,
       body.score_grade,
       body.roast,
-      body.deps_count || 0,
+      (typeof body.deps_count === 'number' ? body.deps_count : 0),
       body.has_tests ? 1 : 0,
-      body.total_lines || 0,
-      body.languages || '{}',
+      (typeof body.total_lines === 'number' ? body.total_lines : 0),
+      (typeof body.languages === 'string' ? body.languages : '{}'),
     ],
   })
 
-  // Get rank
-  const rankResult = await db.execute({
-    sql: `SELECT COUNT(*) as rank FROM reports WHERE score_points > ?`,
+  // Get rank and total in one query
+  const statsResult = await db.execute({
+    sql: `SELECT
+            (SELECT COUNT(*) FROM reports WHERE score_points > ?) as rank,
+            (SELECT COUNT(*) FROM reports) as total`,
     args: [body.score_points],
   })
-  const rank = (Number(rankResult.rows[0]?.rank) || 0) + 1
-
-  // Get total count for percentile
-  const countResult = await db.execute({
-    sql: `SELECT COUNT(*) as total FROM reports`,
-    args: [],
-  })
-  const total = Number(countResult.rows[0]?.total) || 1
+  const rank = (Number(statsResult.rows[0]?.rank) || 0) + 1
+  const total = Number(statsResult.rows[0]?.total) || 1
   const percentile = ((total - rank) / total) * 100
 
   return c.json({
@@ -85,7 +109,8 @@ app.get('/api/reports/:id', async (c) => {
     return c.json({ error: 'Report not found' }, 404)
   }
 
-  return c.json(result.rows[0])
+  const row = result.rows[0]
+  return c.json({ ...row, has_tests: Boolean(row.has_tests) })
 })
 
 // ── GET /api/leaderboard — Top scores, paginated ──
@@ -95,16 +120,26 @@ app.get('/api/leaderboard', async (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 100)
   const offset = (page - 1) * limit
 
+  // Period filter
+  const period = c.req.query('period')
+  let whereClause = ''
+  if (period === 'week') {
+    whereClause = "WHERE created_at > datetime('now', '-7 days')"
+  } else if (period === 'month') {
+    whereClause = "WHERE created_at > datetime('now', '-30 days')"
+  }
+
   const result = await db.execute({
     sql: `SELECT id, repo_name, github_username, ai_ratio, score_points, score_grade, roast, created_at
           FROM reports
+          ${whereClause}
           ORDER BY score_points DESC, created_at DESC
           LIMIT ? OFFSET ?`,
     args: [limit, offset],
   })
 
   const countResult = await db.execute({
-    sql: `SELECT COUNT(*) as total FROM reports`,
+    sql: `SELECT COUNT(*) as total FROM reports ${whereClause}`,
     args: [],
   })
 
@@ -172,5 +207,8 @@ app.get('/api/badge/:id.svg', async (c) => {
     },
   })
 })
+
+// ── Health check ──
+app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
 export default app
