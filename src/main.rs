@@ -3,6 +3,7 @@ mod project;
 mod render;
 mod scanner;
 mod score;
+mod share;
 
 use clap::Parser;
 use std::path::Path;
@@ -179,6 +180,72 @@ fn output_report(
             std::process::exit(1);
         });
         eprintln!("SVG saved to {}", svg_path);
+    }
+
+    // ── Share to vibereport.dev ──
+    if cli.share {
+        share_report(git_stats, project_stats, vibe_score, repo_name);
+    }
+}
+
+/// Build a ReportPayload from computed stats and upload to vibereport.dev.
+fn share_report(
+    git_stats: &git::parser::GitStats,
+    project_stats: &project::ProjectStats,
+    vibe_score: &score::calculator::VibeScore,
+    repo_name: &str,
+) {
+    // Determine the most common AI tool, or "Human" if no AI commits
+    let ai_tool = git_stats
+        .ai_tools
+        .iter()
+        .max_by_key(|(_, count)| *count)
+        .map(|(tool, _)| tool.to_string())
+        .unwrap_or_else(|| "Human".to_string());
+
+    // Extract github username from repo_name if it looks like "user/repo"
+    let (github_username, short_repo_name) = if repo_name.contains('/') {
+        let parts: Vec<&str> = repo_name.splitn(2, '/').collect();
+        (Some(parts[0].to_string()), Some(parts[1].to_string()))
+    } else {
+        (None, Some(repo_name.to_string()))
+    };
+
+    // Serialize languages HashMap to JSON string
+    let languages_map: std::collections::HashMap<&String, &usize> =
+        project_stats.languages.languages.iter().collect();
+    let languages_json = serde_json::to_string(&languages_map).unwrap_or_else(|_| "{}".into());
+
+    let payload = share::upload::ReportPayload {
+        github_username,
+        repo_name: short_repo_name,
+        ai_ratio: vibe_score.ai_ratio,
+        ai_tool,
+        score_points: vibe_score.points,
+        score_grade: vibe_score.grade.clone(),
+        roast: vibe_score.roast.clone(),
+        deps_count: project_stats.deps.total,
+        has_tests: project_stats.tests.has_tests,
+        total_lines: project_stats.languages.total_lines,
+        languages: languages_json,
+    };
+
+    eprintln!("\n  Uploading report...");
+
+    match share::upload::upload_report(&payload) {
+        Ok(resp) => {
+            eprintln!("  \u{1f517} Shared! {}", resp.url);
+            if let (Some(rank), Some(percentile)) = (resp.rank, resp.percentile) {
+                eprintln!(
+                    "  \u{1f3c6} Rank #{} \u{2014} More AI-dependent than {:.0}% of devs",
+                    rank, percentile
+                );
+            }
+        }
+        Err(e) => {
+            eprintln!("  Failed to share report: {}", e);
+            eprintln!("  (The report was still rendered locally above.)");
+        }
     }
 }
 
