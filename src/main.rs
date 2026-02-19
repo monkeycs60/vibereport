@@ -1,5 +1,6 @@
 mod git;
 mod project;
+mod score;
 
 use clap::Parser;
 use std::path::Path;
