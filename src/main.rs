@@ -1,5 +1,6 @@
 mod git;
 mod project;
+mod render;
 mod score;
 
 use clap::Parser;
@@ -33,24 +34,79 @@ fn main() {
     let cli = Cli::parse();
     let path = Path::new(&cli.path);
 
-    println!("Scanning {}...", path.display());
+    eprintln!("Scanning {}...", path.display());
 
-    match git::parser::analyze_repo(path) {
-        Ok(stats) => {
-            println!("Total commits: {}", stats.total_commits);
-            println!(
-                "AI commits: {} ({:.0}%)",
-                stats.ai_commits,
-                stats.ai_ratio * 100.0
-            );
-            println!("Human commits: {}", stats.human_commits);
-            for (tool, count) in &stats.ai_tools {
-                println!("  {}: {}", tool, count);
-            }
-        }
+    // ── Step 1: Analyze git history ──
+    let git_stats = match git::parser::analyze_repo(path) {
+        Ok(s) => s,
         Err(e) => {
-            eprintln!("Error: {}", e);
+            eprintln!("Error reading git repo: {}", e);
             std::process::exit(1);
         }
+    };
+
+    // ── Step 2: Analyze project structure ──
+    let project_stats = project::analyze_project(path);
+
+    // ── Step 3: Calculate vibe score ──
+    let vibe_score = score::calculator::calculate(&git_stats, &project_stats);
+
+    // ── Step 4: Output ──
+    if cli.json {
+        // JSON output
+        let languages: std::collections::HashMap<&String, &usize> =
+            project_stats.languages.languages.iter().collect();
+
+        let ai_tools: Vec<serde_json::Value> = git_stats
+            .ai_tools
+            .iter()
+            .map(|(tool, count)| {
+                serde_json::json!({
+                    "tool": tool.to_string(),
+                    "commits": count,
+                })
+            })
+            .collect();
+
+        let output = serde_json::json!({
+            "repo": path.canonicalize()
+                .ok()
+                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+                .unwrap_or_else(|| cli.path.clone()),
+            "ai_ratio": vibe_score.ai_ratio,
+            "human_ratio": 1.0 - vibe_score.ai_ratio,
+            "score": vibe_score.points,
+            "grade": vibe_score.grade,
+            "roast": vibe_score.roast,
+            "total_commits": git_stats.total_commits,
+            "ai_commits": git_stats.ai_commits,
+            "human_commits": git_stats.human_commits,
+            "ai_tools": ai_tools,
+            "deps": {
+                "total": project_stats.deps.total,
+                "manager": project_stats.deps.manager,
+            },
+            "tests": {
+                "has_tests": project_stats.tests.has_tests,
+                "test_files": project_stats.tests.test_files_count,
+                "frameworks": project_stats.tests.frameworks,
+            },
+            "languages": languages,
+            "total_lines": project_stats.languages.total_lines,
+            "security": {
+                "env_in_git": project_stats.security.env_in_git,
+            },
+        });
+
+        println!("{}", serde_json::to_string_pretty(&output).unwrap());
+    } else {
+        // Beautiful terminal output
+        let repo_name = path
+            .canonicalize()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+            .unwrap_or_else(|| cli.path.clone());
+
+        render::terminal::render_with_name(&git_stats, &project_stats, &vibe_score, &repo_name);
     }
 }
