@@ -1,0 +1,27 @@
+[package]
+name = "vibereport"
+version = "0.1.0"
+edition = "2021"
+description = "The Spotify Wrapped for your code. How much of your repo is AI-generated?"
+license = "MIT"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+gix = { version = "0.72", default-features = false, features = ["max-performance-safe"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ratatui = "0.29"
+crossterm = "0.28"
+owo-colors = "4"
+reqwest = { version = "0.12", features = ["json", "blocking"], optional = true }
+toml = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+
+[features]
+default = ["share"]
+share = ["reqwest"]
+
+[dev-dependencies]
+tempfile = "3"
+assert_cmd = "2"
+predicates = "3"
