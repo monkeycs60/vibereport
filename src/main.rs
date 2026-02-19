@@ -37,6 +37,13 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
+
+    // Check if path is a GitHub reference
+    if let Some((user, repo)) = scanner::remote::parse_github_ref(&cli.path) {
+        run_remote(&cli, &user, &repo);
+        return;
+    }
+
     let path = Path::new(&cli.path);
 
     if cli.scan_all {
@@ -44,6 +51,11 @@ fn main() {
         return;
     }
 
+    run_single(&cli, path);
+}
+
+/// Analyze a single local repo.
+fn run_single(cli: &Cli, path: &Path) {
     eprintln!("Scanning {}...", path.display());
 
     // ── Step 1: Analyze git history ──
@@ -61,16 +73,58 @@ fn main() {
     // ── Step 3: Calculate vibe score ──
     let vibe_score = score::calculator::calculate(&git_stats, &project_stats);
 
-    // ── Repo name (used by both terminal and SVG output) ──
+    // ── Repo name ──
     let repo_name = path
         .canonicalize()
         .ok()
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
         .unwrap_or_else(|| cli.path.clone());
 
-    // ── Step 4: Output ──
+    // ── Output + export ──
+    output_report(cli, &git_stats, &project_stats, &vibe_score, &repo_name);
+}
+
+/// Clone a remote GitHub repo and analyze it.
+fn run_remote(cli: &Cli, user: &str, repo: &str) {
+    eprintln!("Cloning {}/{}...", user, repo);
+    let tmp_path = match scanner::remote::clone_for_analysis(user, repo) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error cloning repo: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let repo_name = format!("{}/{}", user, repo);
+
+    // Run the same analysis pipeline as single-repo
+    let git_stats = match git::parser::analyze_repo(&tmp_path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error analyzing repo: {}", e);
+            scanner::remote::cleanup(&tmp_path);
+            std::process::exit(1);
+        }
+    };
+    let project_stats = project::analyze_project(&tmp_path);
+    let vibe_score = score::calculator::calculate(&git_stats, &project_stats);
+
+    // Output + export
+    output_report(cli, &git_stats, &project_stats, &vibe_score, &repo_name);
+
+    // Cleanup temp dir
+    scanner::remote::cleanup(&tmp_path);
+}
+
+/// Common output logic: terminal/JSON rendering + SVG export.
+fn output_report(
+    cli: &Cli,
+    git_stats: &git::parser::GitStats,
+    project_stats: &project::ProjectStats,
+    vibe_score: &score::calculator::VibeScore,
+    repo_name: &str,
+) {
     if cli.json {
-        // JSON output
         let languages: std::collections::HashMap<&String, &usize> =
             project_stats.languages.languages.iter().collect();
 
@@ -86,7 +140,7 @@ fn main() {
             .collect();
 
         let output = serde_json::json!({
-            "repo": &repo_name,
+            "repo": repo_name,
             "ai_ratio": vibe_score.ai_ratio,
             "human_ratio": 1.0 - vibe_score.ai_ratio,
             "score": vibe_score.points,
@@ -114,14 +168,12 @@ fn main() {
 
         println!("{}", serde_json::to_string_pretty(&output).unwrap());
     } else {
-        // Beautiful terminal output
-        render::terminal::render_with_name(&git_stats, &project_stats, &vibe_score, &repo_name);
+        render::terminal::render_with_name(git_stats, project_stats, vibe_score, repo_name);
     }
 
     // ── SVG export ──
     if let Some(svg_path) = &cli.svg {
-        let svg_content =
-            render::svg::render_svg(&git_stats, &project_stats, &vibe_score, &repo_name);
+        let svg_content = render::svg::render_svg(git_stats, project_stats, vibe_score, repo_name);
         std::fs::write(svg_path, &svg_content).unwrap_or_else(|e| {
             eprintln!("Error writing SVG: {}", e);
             std::process::exit(1);
