@@ -1,0 +1,163 @@
+# vibereport
+
+**The Spotify Wrapped for your code.** How much of your repo is vibe-coded?
+
+```
+  ╭────────────────────────────────────────────────────────╮
+  │                                                        │
+  │                     VIBE REPORT                        │
+  │               my-project  ⚡                           │
+  │                                                        │
+  ├────────────────────────────────────────────────────────┤
+  │                                                        │
+  │   AI-authored  ..........................  72%          │
+  │   Human-authored  .......................  28%          │
+  │   Total commits  ........................  847          │
+  │                                                        │
+  │   ── AI TOOLS                                          │
+  │     Claude Code  .................  614 (72%)           │
+  │     GitHub Copilot  ..............   12 (1%)            │
+  │                                                        │
+  │   ── PROJECT                                           │
+  │   Dependencies  ...........  42 (npm)                   │
+  │   Tests  .........  12 files [jest, vitest]             │
+  │   Lines of code  ................  24.3K                │
+  │                                                        │
+  │   ── LANGUAGES                                         │
+  │     TypeScript     ████████████░  92.1%                │
+  │     Rust           █░░░░░░░░░░░   5.3%                │
+  │     CSS            ░░░░░░░░░░░░   2.1%                │
+  │                                                        │
+  ├────────────────────────────────────────────────────────┤
+  │                                                        │
+  │            VIBE SCORE: A (75pts)                        │
+  │                                                        │
+  │        "More vibes than version control."               │
+  │                                                        │
+  ╰────────────────────────────────────────────────────────╯
+```
+
+## What is this?
+
+vibereport scans your git history and tells you exactly how AI-dependent your codebase is. It detects Claude Code, GitHub Copilot, Codex CLI, and other AI tools from commit signatures and generates a fun "Vibe Score" with a roast.
+
+## Quick Start
+
+```bash
+# Install
+cargo install vibereport
+
+# Scan your current repo
+vibereport
+
+# Scan a specific repo
+vibereport /path/to/repo
+
+# Scan ALL repos on your machine
+vibereport --scan-all ~/projects
+
+# Scan a public GitHub repo
+vibereport github:anthropics/claude-code
+
+# Export as shareable SVG
+vibereport --svg report.svg
+
+# Export as JSON
+vibereport --json
+
+# Share to leaderboard
+vibereport --share
+```
+
+## What it detects
+
+- **Claude Code** — `Co-Authored-By` signatures, `noreply@anthropic.com`, "Generated with Claude Code" footers
+- **GitHub Copilot** — Copilot commit patterns, `copilot` co-author trailers
+- **Codex CLI** — OpenAI Codex signatures, `codex-cli` markers
+- **Human code** — Everything else
+
+## The Vibe Score
+
+The Vibe Score is a composite metric from 0-100 that measures how "vibe coded" your project is. Higher = more AI-assisted. This is not a quality judgment -- it's a fun metric.
+
+| Grade | Points | Meaning |
+|-------|--------|---------|
+| S | 90-100 | Peak vibe coder. The AI writes everything. |
+| A+ | 80-89 | You review more than you write. |
+| A | 70-79 | AI is your senior dev. |
+| B+ | 60-69 | Solid vibes. Ships fast. |
+| B | 50-59 | Half human, half machine. |
+| C+ | 40-49 | You still type a lot. |
+| C | 30-39 | Mostly human. Interesting choice. |
+| D | 20-29 | Artisan coder. Handcrafted. |
+| F | 0-19 | What year is it? |
+
+**Score factors:**
+- AI commit ratio (primary factor)
+- Dependency count (more deps = more vibe)
+- Test coverage (no tests = peak vibe)
+- Codebase size
+- Security issues (.env in git = bonus vibe points)
+
+## Features
+
+- **Git history analysis** — Scans all commits for AI tool signatures using `gix` (pure Rust, no git binary needed)
+- **Project health stats** — Dependencies, tests, languages, security audit
+- **Vibe Score** — Fun composite score from 0-100 with letter grades
+- **Roast taglines** — Burns based on your coding style ("Ships fast, tests never.")
+- **SVG export** — Beautiful shareable images for social media
+- **JSON export** — Machine-readable output for CI pipelines
+- **Global leaderboard** — Compare your vibe score with other devs
+- **Multi-repo scan** — Scan all repos on your machine at once
+- **Remote scan** — Analyze any public GitHub repo without cloning locally
+
+## Web
+
+Visit [vibereport.dev](https://vibereport.dev) to:
+- Scan any public GitHub repo instantly
+- View the global leaderboard
+- Share your report with a permalink
+
+## How it works
+
+1. Parses git log with [`gix`](https://github.com/Byron/gitoxide) (pure Rust, no git binary needed for local repos)
+2. Detects AI tools from `Co-Authored-By` trailers and commit message patterns
+3. Analyzes project structure (dependencies, test files, language breakdown, security)
+4. Computes a composite "Vibe Score" (0-100)
+5. Generates a roast tagline tailored to your project
+6. Renders a terminal report with box-drawing UI, or exports as SVG/JSON
+
+## Multi-repo scan
+
+```bash
+vibereport --scan-all ~/projects
+```
+
+```
+  YOUR DEV LIFE — Vibe Report (5 repos)
+
+  REPO                      AI%  SCORE  ROAST
+  ──────────────────────────────────────────────────────────────────────
+  my-saas-app                92%     S  "You're the project manager now."
+  dotfiles                    0%     F  "Write code like it's 2019."
+  side-project               45%    C+  "Training wheels still on."
+  blog                       68%    B+  "Solid vibe-to-code ratio."
+  cli-tool                   31%     C  "Mostly artisanal, free-range code."
+
+  ──────────────────────────────────────────────────────────────────────
+  GLOBAL: 52% AI | 84.2K lines | Avg Score: C+ (47)
+```
+
+## Built with
+
+- [Rust](https://www.rust-lang.org/) — Fast, single-binary CLI
+- [gix](https://github.com/Byron/gitoxide) — Pure Rust git implementation
+- [clap](https://github.com/clap-rs/clap) — CLI argument parsing
+- [owo-colors](https://github.com/jam1garner/owo-colors) — Terminal colors
+- [Hono](https://hono.dev/) — Edge API framework (backend)
+- [Astro](https://astro.build/) — Web frontend
+- [Turso](https://turso.tech/) — Edge SQLite database
+
+## License
+
+MIT
