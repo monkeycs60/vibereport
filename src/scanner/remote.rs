@@ -18,6 +18,8 @@ pub fn parse_github_ref(input: &str) -> Option<(String, String)> {
 
 /// Shallow-clone a GitHub repo into a temp directory for analysis.
 /// Uses --depth 500 to get enough commit history for meaningful AI detection.
+/// NOTE: Uses system `git` instead of `gix` because gix does not support
+/// shallow clone (--depth) which is critical for performance on large repos.
 pub fn clone_for_analysis(user: &str, repo: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let tmp_dir = std::env::temp_dir().join(format!("vibereport-{}-{}", user, repo));
 
@@ -26,18 +28,15 @@ pub fn clone_for_analysis(user: &str, repo: &str) -> Result<PathBuf, Box<dyn std
         std::fs::remove_dir_all(&tmp_dir)?;
     }
 
-    let status = Command::new("git")
-        .args([
-            "clone",
-            "--depth",
-            "500",
-            &format!("https://github.com/{}/{}.git", user, repo),
-            &tmp_dir.to_string_lossy().as_ref(),
-        ])
-        .status()?;
+    let url = format!("https://github.com/{}/{}.git", user, repo);
+    let dest = tmp_dir.to_string_lossy().to_string();
+    let output = Command::new("git")
+        .args(["clone", "--depth", "500", &url, &dest])
+        .output()?;
 
-    if !status.success() {
-        return Err(format!("Failed to clone {}/{}", user, repo).into());
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to clone {}/{}: {}", user, repo, stderr.trim()).into());
     }
 
     Ok(tmp_dir)

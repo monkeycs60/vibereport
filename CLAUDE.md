@@ -4,7 +4,7 @@ Rust CLI tool. "The Spotify Wrapped for your code."
 
 ## Conventions
 - Use `thiserror` pattern for errors (enum VibereportError)
-- All git operations go through `gix` crate, never shell out to `git`
+- All git operations go through `gix` crate, never shell out to `git` (exception: `scanner/remote.rs` uses system git for shallow clone — gix lacks `--depth` support)
 - Module structure: git/, project/, score/, render/
 - Tests: unit tests in same file (#[cfg(test)] mod tests), integration tests in tests/
 - Run tests: `cargo test`
