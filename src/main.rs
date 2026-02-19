@@ -1,6 +1,7 @@
 mod git;
 mod project;
 mod render;
+mod scanner;
 mod score;
 
 use clap::Parser;
@@ -37,6 +38,11 @@ struct Cli {
 fn main() {
     let cli = Cli::parse();
     let path = Path::new(&cli.path);
+
+    if cli.scan_all {
+        run_scan_all(path);
+        return;
+    }
 
     eprintln!("Scanning {}...", path.display());
 
@@ -122,4 +128,62 @@ fn main() {
         });
         eprintln!("SVG saved to {}", svg_path);
     }
+}
+
+/// Scan all git repos under the given directory and produce a multi-repo report.
+fn run_scan_all(path: &Path) {
+    eprintln!("Discovering git repos in {}...", path.display());
+
+    let repo_paths = scanner::discover::find_git_repos(path, 5);
+
+    if repo_paths.is_empty() {
+        eprintln!("No git repos found under {}", path.display());
+        std::process::exit(1);
+    }
+
+    eprintln!("Found {} repos. Analyzing...", repo_paths.len());
+
+    let mut reports = Vec::new();
+
+    for repo_path in &repo_paths {
+        let name = repo_path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| repo_path.display().to_string());
+
+        eprint!("  {} ... ", name);
+
+        // Analyze git history
+        let git_stats = match git::parser::analyze_repo(repo_path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("skipped ({})", e);
+                continue;
+            }
+        };
+
+        // Analyze project structure
+        let project_stats = project::analyze_project(repo_path);
+
+        // Calculate vibe score
+        let vibe_score = score::calculator::calculate(&git_stats, &project_stats);
+
+        eprintln!("OK ({} commits)", git_stats.total_commits);
+
+        reports.push(scanner::multi_report::RepoReport {
+            path: repo_path.clone(),
+            name,
+            git_stats,
+            project_stats,
+            score: vibe_score,
+        });
+    }
+
+    if reports.is_empty() {
+        eprintln!("All repos failed to parse.");
+        std::process::exit(1);
+    }
+
+    let multi = scanner::multi_report::aggregate(reports);
+    render::terminal::render_multi(&multi);
 }

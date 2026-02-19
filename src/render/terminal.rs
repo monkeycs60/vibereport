@@ -113,6 +113,76 @@ pub fn render(git: &GitStats, project: &ProjectStats, score: &VibeScore) {
     render_with_name(git, project, score, "");
 }
 
+/// Render a multi-repo summary table.
+pub fn render_multi(report: &crate::scanner::multi_report::MultiReport) {
+    println!();
+    println!(
+        "  {} {}",
+        "YOUR DEV LIFE — Vibe Report".bold().white(),
+        format!("({} repos)", report.repos.len()).dimmed()
+    );
+    println!();
+
+    // Column headers
+    println!(
+        "  {:<25} {:>5}  {:>5}  {}",
+        "REPO".dimmed(),
+        "AI%".dimmed(),
+        "SCORE".dimmed(),
+        "ROAST".dimmed()
+    );
+    println!("  {}", "\u{2500}".repeat(70).bright_black());
+
+    // Sort repos by score descending
+    let mut sorted: Vec<_> = report.repos.iter().collect();
+    sorted.sort_by(|a, b| b.score.points.cmp(&a.score.points));
+
+    for repo in &sorted {
+        let ai_pct = format!("{:.0}%", repo.score.ai_ratio * 100.0);
+        let grade = &repo.score.grade;
+        let roast_short = if repo.score.roast.len() > 35 {
+            format!("\"{}...\"", &repo.score.roast[..32])
+        } else {
+            format!("\"{}\"", repo.score.roast)
+        };
+        println!(
+            "  {:<25} {:>5}  {:>5}  {}",
+            repo.name.white().bold(),
+            ai_pct.cyan(),
+            grade.yellow().bold(),
+            roast_short.dimmed()
+        );
+    }
+
+    // Global summary
+    println!();
+    println!("  {}", "\u{2500}".repeat(70).bright_black());
+    let global_summary = format!(
+        "GLOBAL: {:.0}% AI | {} lines | Avg Score: {} ({})",
+        report.global_ai_ratio * 100.0,
+        fmt_num(report.total_lines),
+        grade_from_points(report.average_score),
+        report.average_score
+    );
+    println!("  {}", global_summary.bold().white());
+    println!();
+}
+
+/// Convert numeric points to a letter grade.
+fn grade_from_points(points: u32) -> &'static str {
+    match points {
+        90..=100 => "S",
+        80..=89 => "A+",
+        70..=79 => "A",
+        60..=69 => "B+",
+        50..=59 => "B",
+        40..=49 => "C+",
+        30..=39 => "C",
+        20..=29 => "D",
+        _ => "F",
+    }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  Display width calculation
 //
