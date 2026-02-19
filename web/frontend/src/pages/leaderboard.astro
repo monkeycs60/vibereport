@@ -1,0 +1,123 @@
+---
+import Base from '../layouts/Base.astro';
+import LeaderboardTable from '../components/LeaderboardTable.astro';
+import { fetchLeaderboard } from '../lib/api';
+
+const page = Number(Astro.url.searchParams.get('page')) || 1;
+const period = Astro.url.searchParams.get('period') || undefined;
+const limit = 20;
+
+let leaderboard = { entries: [], total: 0, page: 1, limit: 20 };
+try {
+  leaderboard = await fetchLeaderboard(page, limit, period);
+} catch {}
+
+const totalPages = Math.max(1, Math.ceil(leaderboard.total / limit));
+const periods = [
+  { value: undefined, label: 'All time' },
+  { value: 'month', label: 'This month' },
+  { value: 'week', label: 'This week' },
+];
+
+const showPrev = page > 1;
+const showNext = page + 1 <= totalPages;
+const periodSuffix = period ? `&period=${period}` : '';
+
+// Pre-compute page numbers to avoid < / <= in template expressions
+function computePageNumbers(currentPage: number, total: number): number[] {
+  const count = Math.min(total, 7);
+  return Array.from({ length: count }, (_, i) => {
+    if (total <= 7) return i + 1;
+    if (currentPage <= 4) return i + 1;
+    if (currentPage >= total - 3) return total - 6 + i;
+    return currentPage - 3 + i;
+  });
+}
+
+const pageNumbers = computePageNumbers(page, totalPages);
+---
+
+<Base title="Leaderboard - vibereport" description="See which repos have the highest vibe scores. The global leaderboard for AI-generated code detection.">
+  <section class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
+    <!-- Header -->
+    <div class="mb-10">
+      <h1 class="text-3xl sm:text-4xl font-bold text-tokyo-text mb-2">
+        Leaderboard
+      </h1>
+      <p class="text-sm text-tokyo-dimmed">
+        The most analyzed repos, ranked by vibe score.
+      </p>
+    </div>
+
+    <!-- Period filters -->
+    <div class="flex items-center gap-2 mb-8">
+      {periods.map((p) => {
+        const isActive = period === p.value;
+        const href = p.value
+          ? `/leaderboard?period=${p.value}`
+          : '/leaderboard';
+        return (
+          <a
+            href={href}
+            class:list={[
+              'px-4 py-1.5 rounded-lg text-xs font-medium transition-all',
+              isActive
+                ? 'bg-tokyo-cyan/20 text-tokyo-cyan border border-tokyo-cyan/30'
+                : 'bg-tokyo-surface/50 text-tokyo-dimmed border border-tokyo-border/30 hover:text-tokyo-text hover:border-tokyo-border/50',
+            ]}
+          >
+            {p.label}
+          </a>
+        );
+      })}
+    </div>
+
+    <!-- Table -->
+    <div class="rounded-xl border border-tokyo-border/30 bg-tokyo-surface/30 backdrop-blur-sm overflow-hidden mb-8">
+      <LeaderboardTable
+        entries={leaderboard.entries}
+        startRank={(page - 1) * limit + 1}
+      />
+    </div>
+
+    <!-- Pagination -->
+    {totalPages > 1 && (
+      <div class="flex items-center justify-center gap-2">
+        {showPrev && (
+          <a
+            href={`/leaderboard?page=${page - 1}${periodSuffix}`}
+            class="px-3 py-1.5 rounded-lg text-xs bg-tokyo-surface/50 text-tokyo-dimmed border border-tokyo-border/30 hover:text-tokyo-text hover:border-tokyo-border/50 transition-all"
+          >
+            &larr; Prev
+          </a>
+        )}
+
+        {pageNumbers.map((pageNum) => {
+          const isCurrent = pageNum === page;
+          return (
+            <a
+              href={`/leaderboard?page=${pageNum}${periodSuffix}`}
+              class:list={[
+                'w-8 h-8 flex items-center justify-center rounded-lg text-xs transition-all',
+                isCurrent
+                  ? 'bg-tokyo-cyan/20 text-tokyo-cyan border border-tokyo-cyan/30 font-bold'
+                  : 'bg-tokyo-surface/50 text-tokyo-dimmed border border-tokyo-border/30 hover:text-tokyo-text',
+              ]}
+            >
+              {pageNum}
+            </a>
+          );
+        })}
+
+        {showNext && (
+          <a
+            href={`/leaderboard?page=${page + 1}${periodSuffix}`}
+            class="px-3 py-1.5 rounded-lg text-xs bg-tokyo-surface/50 text-tokyo-dimmed border border-tokyo-border/30 hover:text-tokyo-text hover:border-tokyo-border/50 transition-all"
+          >
+            Next &rarr;
+          </a>
+        )}
+      </div>
+    )}
+  </section>
+</Base>

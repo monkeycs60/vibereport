@@ -1,0 +1,267 @@
+---
+import Base from '../layouts/Base.astro';
+import { getApiUrl } from '../lib/api';
+
+const apiUrl = getApiUrl();
+---
+
+<Base title="Scan a repo - vibereport" description="Analyze any GitHub repo for AI-generated code. Enter a URL and get your vibe report.">
+  <section class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
+    <!-- Header -->
+    <div class="text-center mb-10">
+      <h1 class="text-3xl sm:text-4xl font-bold text-tokyo-text mb-3">
+        Scan a repo
+      </h1>
+      <p class="text-sm text-tokyo-dimmed">
+        Enter a GitHub URL to analyze for AI-generated code.
+      </p>
+    </div>
+
+    <!-- Scan form -->
+    <div class="max-w-xl mx-auto mb-12">
+      <form id="scan-form" class="space-y-4">
+        <div class="relative">
+          <input
+            type="text"
+            id="scan-input"
+            placeholder="https://github.com/user/repo or github:user/repo"
+            class="w-full px-4 py-3.5 bg-tokyo-surface/80 backdrop-blur border border-tokyo-border/50 rounded-xl text-sm text-tokyo-text placeholder-tokyo-dimmed/60 focus:outline-none focus:border-tokyo-cyan/50 focus:ring-2 focus:ring-tokyo-cyan/20 transition-all"
+            autofocus
+          />
+        </div>
+        <button
+          type="submit"
+          id="scan-btn"
+          class="w-full px-6 py-3 bg-gradient-to-r from-tokyo-cyan to-tokyo-green text-tokyo-bg font-semibold rounded-xl text-sm hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Analyze
+        </button>
+      </form>
+    </div>
+
+    <!-- Status area -->
+    <div id="scan-status" class="hidden max-w-xl mx-auto">
+      <!-- Loading state -->
+      <div id="scan-loading" class="hidden text-center py-12">
+        <div class="inline-flex items-center gap-3 px-6 py-3 bg-tokyo-surface/50 rounded-xl border border-tokyo-border/30">
+          <svg class="animate-spin h-5 w-5 text-tokyo-cyan" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span class="text-sm text-tokyo-text">Analyzing repository...</span>
+        </div>
+        <p class="text-xs text-tokyo-dimmed mt-4">
+          This may take a moment for large repos.
+        </p>
+      </div>
+
+      <!-- Error state -->
+      <div id="scan-error" class="hidden">
+        <div class="p-4 bg-tokyo-red/10 border border-tokyo-red/30 rounded-xl">
+          <p class="text-sm text-tokyo-red font-medium mb-1">Scan failed</p>
+          <p id="scan-error-msg" class="text-xs text-tokyo-dimmed"></p>
+        </div>
+      </div>
+
+      <!-- Result state -->
+      <div id="scan-result" class="hidden">
+        <div class="p-6 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 backdrop-blur-sm">
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <h3 id="result-repo" class="text-lg font-bold text-tokyo-text"></h3>
+              <p class="text-xs text-tokyo-dimmed mt-1">
+                <span id="result-commits"></span> commits analyzed
+              </p>
+            </div>
+            <div id="result-grade" class="w-16 h-16 flex items-center justify-center rounded-xl text-3xl font-bold border-2"></div>
+          </div>
+
+          <!-- AI ratio bar -->
+          <div class="mb-4">
+            <div class="flex items-center justify-between text-xs mb-1.5">
+              <span class="text-tokyo-dimmed">AI: <span id="result-ai-pct"></span>%</span>
+              <span class="text-tokyo-dimmed">Human: <span id="result-human-pct"></span>%</span>
+            </div>
+            <div class="h-3 bg-tokyo-bg rounded-full overflow-hidden">
+              <div id="result-ai-bar" class="h-full rounded-full transition-all duration-1000 ease-out" style="width: 0%; background: linear-gradient(90deg, #f7768e, #e0af68);"></div>
+            </div>
+          </div>
+
+          <!-- Score -->
+          <div class="flex items-center gap-2 mb-4">
+            <span class="text-xs text-tokyo-dimmed">Score:</span>
+            <span id="result-score" class="text-sm font-bold"></span>
+            <span class="text-xs text-tokyo-dimmed">/100</span>
+          </div>
+
+          <!-- Roast -->
+          <p id="result-roast" class="text-sm text-tokyo-yellow italic mb-4"></p>
+
+          <!-- Languages -->
+          <div id="result-langs" class="flex flex-wrap gap-1.5 mb-6"></div>
+
+          <!-- Actions -->
+          <div class="flex items-center gap-3">
+            <a id="result-link" href="#" class="px-4 py-2 bg-tokyo-cyan/20 text-tokyo-cyan text-xs rounded-lg border border-tokyo-cyan/30 hover:bg-tokyo-cyan/30 transition-all">
+              View full report &rarr;
+            </a>
+            <button id="result-share-twitter" class="px-4 py-2 bg-tokyo-surface text-tokyo-dimmed text-xs rounded-lg border border-tokyo-border/30 hover:text-tokyo-text transition-all">
+              Share on Twitter
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Examples -->
+    <div class="max-w-xl mx-auto mt-12">
+      <p class="text-xs text-tokyo-dimmed mb-3">Try these:</p>
+      <div class="flex flex-wrap gap-2">
+        {['github:denoland/deno', 'github:astral-sh/ruff', 'github:tauri-apps/tauri'].map((example) => (
+          <button
+            class="scan-example px-3 py-1.5 bg-tokyo-surface/50 text-xs text-tokyo-dimmed border border-tokyo-border/30 rounded-lg hover:text-tokyo-text hover:border-tokyo-border/50 transition-all cursor-pointer"
+            data-repo={example}
+          >
+            {example}
+          </button>
+        ))}
+      </div>
+    </div>
+  </section>
+</Base>
+
+<script define:vars={{ apiUrl }}>
+  const form = document.getElementById('scan-form');
+  const input = document.getElementById('scan-input');
+  const btn = document.getElementById('scan-btn');
+  const statusArea = document.getElementById('scan-status');
+  const loadingEl = document.getElementById('scan-loading');
+  const errorEl = document.getElementById('scan-error');
+  const errorMsg = document.getElementById('scan-error-msg');
+  const resultEl = document.getElementById('scan-result');
+
+  // Prefill from URL param
+  const params = new URLSearchParams(window.location.search);
+  const repoParam = params.get('repo');
+  if (repoParam && input) {
+    input.value = repoParam;
+    // Auto-submit
+    setTimeout(() => form?.dispatchEvent(new Event('submit')), 100);
+  }
+
+  // Example buttons
+  document.querySelectorAll('.scan-example').forEach((el) => {
+    el.addEventListener('click', () => {
+      if (input) input.value = el.dataset.repo || '';
+      form?.dispatchEvent(new Event('submit'));
+    });
+  });
+
+  function showState(state) {
+    statusArea?.classList.remove('hidden');
+    loadingEl?.classList.add('hidden');
+    errorEl?.classList.add('hidden');
+    resultEl?.classList.add('hidden');
+
+    if (state === 'loading') loadingEl?.classList.remove('hidden');
+    if (state === 'error') errorEl?.classList.remove('hidden');
+    if (state === 'result') resultEl?.classList.remove('hidden');
+  }
+
+  function getGradeClasses(grade) {
+    switch (grade) {
+      case 'S': case 'A': return ['text-[#9ece6a]', 'bg-[#9ece6a]/20', 'border-[#9ece6a]/40'];
+      case 'B': return ['text-[#7aa2f7]', 'bg-[#7aa2f7]/20', 'border-[#7aa2f7]/40'];
+      case 'C': return ['text-[#e0af68]', 'bg-[#e0af68]/20', 'border-[#e0af68]/40'];
+      case 'D': return ['text-[#f7768e]', 'bg-[#f7768e]/20', 'border-[#f7768e]/40'];
+      default: return ['text-[#f7768e]', 'bg-red-500/20', 'border-red-500/40'];
+    }
+  }
+
+  const langColors = {
+    Rust: '#f7768e', TypeScript: '#7aa2f7', JavaScript: '#e0af68',
+    Python: '#9ece6a', Go: '#7dcfff', Java: '#ff9e64',
+    'C++': '#bb9af7', C: '#565f89', Ruby: '#f7768e', Swift: '#ff9e64',
+  };
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const repo = input?.value?.trim();
+    if (!repo) return;
+
+    btn.disabled = true;
+    showState('loading');
+
+    try {
+      const res = await fetch(`${apiUrl}/api/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Scan failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      const aiPct = Math.round((data.ai_ratio || 0) * 100);
+      const humanPct = 100 - aiPct;
+
+      // Populate result
+      document.getElementById('result-repo').textContent = data.repo_name || repo;
+      document.getElementById('result-commits').textContent = data.total_commits || '0';
+      document.getElementById('result-ai-pct').textContent = String(aiPct);
+      document.getElementById('result-human-pct').textContent = String(humanPct);
+      document.getElementById('result-score').textContent = data.score || '0';
+      document.getElementById('result-roast').textContent = `"${data.roast || 'No roast available.'}"`;
+
+      // Grade
+      const gradeEl = document.getElementById('result-grade');
+      const [textCls, bgCls, borderCls] = getGradeClasses(data.grade);
+      gradeEl.className = `w-16 h-16 flex items-center justify-center rounded-xl text-3xl font-bold border-2 ${textCls} ${bgCls} ${borderCls}`;
+      gradeEl.textContent = data.grade || '?';
+
+      // Score color
+      const scoreEl = document.getElementById('result-score');
+      scoreEl.className = `text-sm font-bold ${textCls}`;
+
+      // AI bar animation
+      setTimeout(() => {
+        document.getElementById('result-ai-bar').style.width = `${aiPct}%`;
+      }, 100);
+
+      // Languages
+      const langsEl = document.getElementById('result-langs');
+      langsEl.innerHTML = '';
+      if (data.languages) {
+        Object.entries(data.languages)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 5)
+          .forEach(([lang, pct]) => {
+            const chip = document.createElement('span');
+            chip.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-[#1a1b26]/80 text-[#565f89] border border-[#3b4261]/30';
+            const color = langColors[lang] || '#565f89';
+            chip.innerHTML = `<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${color}"></span>${lang} ${Math.round(pct)}%`;
+            langsEl.appendChild(chip);
+          });
+      }
+
+      // Links
+      if (data.id) {
+        document.getElementById('result-link').href = `/report?id=${data.id}`;
+        document.getElementById('result-share-twitter').onclick = () => {
+          const text = `My repo ${data.repo_name} scored ${data.grade} on vibereport! ${data.roast}`;
+          window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.origin + '/report?id=' + data.id)}`, '_blank');
+        };
+      }
+
+      showState('result');
+    } catch (err) {
+      errorMsg.textContent = err.message || 'An unexpected error occurred.';
+      showState('error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>

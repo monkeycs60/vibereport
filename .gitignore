@@ -3,3 +3,6 @@
 web/api/node_modules/
 web/api/dist/
 web/api/.wrangler/
+web/frontend/node_modules/
+web/frontend/dist/
+web/frontend/.astro/

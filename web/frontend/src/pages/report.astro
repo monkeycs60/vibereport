@@ -1,0 +1,260 @@
+---
+import Base from '../layouts/Base.astro';
+import { getApiUrl } from '../lib/api';
+
+const apiUrl = getApiUrl();
+---
+
+<Base
+  title="Vibe Report"
+  description="Analyze any git repo and discover how much was AI-generated."
+>
+  <section class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
+    <!-- Back link -->
+    <a
+      href="/leaderboard"
+      class="inline-flex items-center gap-1 text-xs text-tokyo-dimmed hover:text-tokyo-text transition-colors mb-8"
+    >
+      &larr; Back to leaderboard
+    </a>
+
+    <!-- Loading state -->
+    <div id="report-loading" class="text-center py-20">
+      <div class="inline-flex items-center gap-3 px-6 py-3 bg-tokyo-surface/50 rounded-xl border border-tokyo-border/30">
+        <svg class="animate-spin h-5 w-5 text-tokyo-cyan" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span class="text-sm text-tokyo-text">Loading report...</span>
+      </div>
+    </div>
+
+    <!-- Error state -->
+    <div id="report-error" class="hidden text-center py-20">
+      <div class="p-6 bg-tokyo-red/10 border border-tokyo-red/30 rounded-xl inline-block">
+        <p class="text-sm text-tokyo-red font-medium mb-2">Report not found</p>
+        <p class="text-xs text-tokyo-dimmed mb-4">This report may have been removed or the ID is invalid.</p>
+        <a href="/" class="text-xs text-tokyo-cyan hover:text-tokyo-cyan/80 transition-colors">
+          &larr; Go home
+        </a>
+      </div>
+    </div>
+
+    <!-- Report card (populated by JS) -->
+    <div id="report-card" class="hidden rounded-2xl border border-tokyo-border/30 bg-tokyo-surface/50 backdrop-blur-sm overflow-hidden glow">
+      <!-- Header -->
+      <div class="px-6 sm:px-8 pt-8 pb-6 border-b border-tokyo-border/20">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-xs text-tokyo-dimmed uppercase tracking-wider mb-1">Vibe Report</p>
+            <h1 id="rpt-name" class="text-xl sm:text-2xl font-bold text-tokyo-text"></h1>
+            <p id="rpt-meta" class="text-xs text-tokyo-dimmed mt-1"></p>
+          </div>
+          <div id="rpt-grade-badge" class="flex-shrink-0 w-20 h-20 flex items-center justify-center rounded-2xl border-2 text-4xl font-bold"></div>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="px-6 sm:px-8 py-6 space-y-6">
+        <!-- AI ratio -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-tokyo-text font-medium">AI-Generated Code</span>
+            <span id="rpt-ai-pct-label" class="text-sm font-bold text-tokyo-yellow"></span>
+          </div>
+          <div class="h-4 bg-tokyo-bg rounded-full overflow-hidden">
+            <div id="rpt-ai-bar" class="h-full rounded-full transition-all duration-1000 ease-out" style="width: 0%; background: linear-gradient(90deg, #f7768e, #e0af68);"></div>
+          </div>
+          <div class="flex justify-between mt-1.5 text-xs text-tokyo-dimmed">
+            <span id="rpt-ai-commits"></span>
+            <span id="rpt-human-commits"></span>
+          </div>
+        </div>
+
+        <!-- Score -->
+        <div class="flex items-center gap-4">
+          <div class="flex-1">
+            <p class="text-xs text-tokyo-dimmed mb-1">Vibe Score</p>
+            <div class="flex items-baseline gap-1">
+              <span id="rpt-score" class="text-3xl font-bold"></span>
+              <span class="text-sm text-tokyo-dimmed">/100</span>
+            </div>
+          </div>
+          <div class="h-12 w-px bg-tokyo-border/30"></div>
+          <div class="flex-1">
+            <p class="text-xs text-tokyo-dimmed mb-1">Grade</p>
+            <span id="rpt-grade-text" class="text-3xl font-bold"></span>
+          </div>
+        </div>
+
+        <!-- Roast -->
+        <div class="p-4 rounded-xl bg-tokyo-bg/60 border border-tokyo-border/20">
+          <p class="text-xs text-tokyo-dimmed uppercase tracking-wider mb-2">Roast</p>
+          <p id="rpt-roast" class="text-sm text-tokyo-yellow italic leading-relaxed"></p>
+        </div>
+
+        <!-- Languages -->
+        <div id="rpt-langs-section" class="hidden">
+          <p class="text-xs text-tokyo-dimmed uppercase tracking-wider mb-3">Languages</p>
+          <div id="rpt-langs" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <!-- Footer / share -->
+      <div class="px-6 sm:px-8 py-5 border-t border-tokyo-border/20 bg-tokyo-bg/30">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <p class="text-xs text-tokyo-dimmed">Share this report</p>
+          <div class="flex items-center gap-2">
+            <a id="share-twitter" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-tokyo-surface text-tokyo-dimmed text-xs rounded-lg border border-tokyo-border/30 hover:text-tokyo-text hover:border-tokyo-border/50 transition-all">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+              Twitter
+            </a>
+            <a id="share-reddit" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-tokyo-surface text-tokyo-dimmed text-xs rounded-lg border border-tokyo-border/30 hover:text-tokyo-text hover:border-tokyo-border/50 transition-all">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/>
+              </svg>
+              Reddit
+            </a>
+            <button id="copy-link" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-tokyo-surface text-tokyo-dimmed text-xs rounded-lg border border-tokyo-border/30 hover:text-tokyo-text hover:border-tokyo-border/50 transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
+              </svg>
+              Copy link
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<script define:vars={{ apiUrl }}>
+  const langColors = {
+    Rust: '#f7768e', TypeScript: '#7aa2f7', JavaScript: '#e0af68',
+    Python: '#9ece6a', Go: '#7dcfff', Java: '#ff9e64',
+    'C++': '#bb9af7', C: '#565f89', Ruby: '#f7768e', Swift: '#ff9e64',
+  };
+
+  function getGradeColor(grade) {
+    switch (grade) {
+      case 'S': case 'A': return '#9ece6a';
+      case 'B': return '#7aa2f7';
+      case 'C': return '#e0af68';
+      case 'D': case 'F': return '#f7768e';
+      default: return '#c0caf5';
+    }
+  }
+
+  async function loadReport() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+
+    if (!id) {
+      document.getElementById('report-loading').classList.add('hidden');
+      document.getElementById('report-error').classList.remove('hidden');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/api/reports/${id}`);
+      if (!res.ok) throw new Error('not found');
+      const report = await res.json();
+
+      const aiPct = Math.round((report.ai_ratio || 0) * 100);
+      const humanPct = 100 - aiPct;
+      const color = getGradeColor(report.grade);
+      const bg = `${color}33`;
+      const border = `${color}66`;
+
+      // Header
+      document.getElementById('rpt-name').textContent = report.repo_name;
+      document.getElementById('rpt-meta').textContent =
+        `${report.total_commits} commits | ${new Date(report.created_at).toLocaleDateString()}`;
+
+      // Grade badge
+      const badge = document.getElementById('rpt-grade-badge');
+      badge.textContent = report.grade;
+      badge.style.color = color;
+      badge.style.backgroundColor = bg;
+      badge.style.borderColor = border;
+
+      // AI ratio
+      document.getElementById('rpt-ai-pct-label').textContent = `${aiPct}%`;
+      setTimeout(() => {
+        document.getElementById('rpt-ai-bar').style.width = `${aiPct}%`;
+      }, 100);
+      document.getElementById('rpt-ai-commits').textContent = `${report.ai_commits} AI commits`;
+      document.getElementById('rpt-human-commits').textContent =
+        `${report.total_commits - report.ai_commits} human commits`;
+
+      // Score + grade
+      const scoreEl = document.getElementById('rpt-score');
+      scoreEl.textContent = report.score;
+      scoreEl.style.color = color;
+      const gradeText = document.getElementById('rpt-grade-text');
+      gradeText.textContent = report.grade;
+      gradeText.style.color = color;
+
+      // Roast
+      document.getElementById('rpt-roast').textContent = `"${report.roast}"`;
+
+      // Languages
+      const langs = Object.entries(report.languages || {})
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 8);
+      if (langs.length > 0) {
+        document.getElementById('rpt-langs-section').classList.remove('hidden');
+        const container = document.getElementById('rpt-langs');
+        langs.forEach(([lang, pct]) => {
+          const lc = langColors[lang] || '#565f89';
+          const row = document.createElement('div');
+          row.className = 'flex items-center gap-3';
+          row.innerHTML = `
+            <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color:${lc}"></span>
+            <span class="text-sm text-[#c0caf5] w-24 flex-shrink-0">${lang}</span>
+            <div class="flex-1 h-2 bg-[#1a1b26] rounded-full overflow-hidden">
+              <div class="h-full rounded-full" style="width:${pct}%;background-color:${lc}"></div>
+            </div>
+            <span class="text-xs text-[#565f89] w-10 text-right tabular-nums">${Math.round(pct)}%</span>
+          `;
+          container.appendChild(row);
+        });
+      }
+
+      // Share links
+      const url = window.location.href;
+      const twitterText = `My repo ${report.repo_name} scored ${report.grade} on vibereport! "${report.roast}"`;
+      document.getElementById('share-twitter').href =
+        `https://twitter.com/intent/tweet?text=${encodeURIComponent(twitterText)}&url=${encodeURIComponent(url)}`;
+      const redditTitle = `vibereport: ${report.repo_name} scored ${report.grade} - "${report.roast}"`;
+      document.getElementById('share-reddit').href =
+        `https://reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(redditTitle)}`;
+
+      // Update page title
+      document.title = `vibereport \u2014 ${report.repo_name} scored ${report.grade}!`;
+
+      // Show report
+      document.getElementById('report-loading').classList.add('hidden');
+      document.getElementById('report-card').classList.remove('hidden');
+    } catch {
+      document.getElementById('report-loading').classList.add('hidden');
+      document.getElementById('report-error').classList.remove('hidden');
+    }
+  }
+
+  // Copy link
+  document.getElementById('copy-link')?.addEventListener('click', () => {
+    navigator.clipboard.writeText(window.location.href);
+    const btn = document.getElementById('copy-link');
+    if (btn) {
+      const original = btn.innerHTML;
+      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!';
+      setTimeout(() => { btn.innerHTML = original; }, 2000);
+    }
+  });
+
+  loadReport();
+</script>

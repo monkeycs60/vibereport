@@ -1,0 +1,139 @@
+---
+import { gradeColor, gradeBg } from '../lib/api';
+
+interface Props {
+  id: string;
+  repoName: string;
+  aiRatio: number;
+  grade: string;
+  score: number;
+  roast: string;
+  languages?: Record<string, number>;
+  totalCommits?: number;
+  aiCommits?: number;
+  compact?: boolean;
+}
+
+const {
+  id,
+  repoName,
+  aiRatio,
+  grade,
+  score,
+  roast,
+  languages = {},
+  totalCommits = 0,
+  aiCommits = 0,
+  compact = false,
+} = Astro.props;
+
+const aiPercent = Math.round(aiRatio * 100);
+const humanPercent = 100 - aiPercent;
+const gradeColorClass = gradeColor(grade);
+const gradeBgClass = gradeBg(grade);
+
+const sortedLangs = Object.entries(languages)
+  .sort(([, a], [, b]) => b - a)
+  .slice(0, 5);
+
+const langColors: Record<string, string> = {
+  Rust: '#f7768e',
+  TypeScript: '#7aa2f7',
+  JavaScript: '#e0af68',
+  Python: '#9ece6a',
+  Go: '#7dcfff',
+  Java: '#ff9e64',
+  'C++': '#bb9af7',
+  C: '#565f89',
+  Ruby: '#f7768e',
+  Swift: '#ff9e64',
+};
+---
+
+<a
+  href={`/report?id=${id}`}
+  class:list={[
+    'block group relative overflow-hidden rounded-xl border border-tokyo-border/50',
+    'bg-tokyo-surface/60 backdrop-blur-sm',
+    'hover:border-tokyo-cyan/30 hover:bg-tokyo-surface/80',
+    'transition-all duration-300',
+    compact ? 'p-4' : 'p-6',
+  ]}
+>
+  <!-- Subtle gradient overlay -->
+  <div class="absolute inset-0 bg-gradient-to-br from-tokyo-cyan/5 via-transparent to-tokyo-green/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+  <div class="relative z-10">
+    <!-- Header: repo name + grade -->
+    <div class="flex items-start justify-between gap-4 mb-4">
+      <div class="min-w-0 flex-1">
+        <h3 class:list={[
+          'font-semibold text-tokyo-text truncate group-hover:text-tokyo-cyan transition-colors',
+          compact ? 'text-sm' : 'text-base',
+        ]}>
+          {repoName}
+        </h3>
+        {!compact && totalCommits > 0 && (
+          <p class="text-xs text-tokyo-dimmed mt-1">
+            {totalCommits} commits analyzed
+          </p>
+        )}
+      </div>
+      <div class:list={[
+        'flex-shrink-0 flex items-center justify-center rounded-lg border font-bold',
+        gradeBgClass,
+        gradeColorClass,
+        compact ? 'w-10 h-10 text-lg' : 'w-14 h-14 text-2xl',
+      ]}>
+        {grade}
+      </div>
+    </div>
+
+    <!-- AI ratio bar -->
+    <div class="mb-3">
+      <div class="flex items-center justify-between text-xs mb-1.5">
+        <span class="text-tokyo-dimmed">AI: {aiPercent}%</span>
+        <span class="text-tokyo-dimmed">Human: {humanPercent}%</span>
+      </div>
+      <div class="h-2 bg-tokyo-bg rounded-full overflow-hidden">
+        <div
+          class="h-full rounded-full transition-all duration-700 ease-out"
+          style={`width: ${aiPercent}%; background: linear-gradient(90deg, #f7768e, #e0af68);`}
+        ></div>
+      </div>
+    </div>
+
+    <!-- Score -->
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-xs text-tokyo-dimmed">Score:</span>
+      <span class:list={['text-sm font-semibold', gradeColorClass]}>
+        {score}/100
+      </span>
+    </div>
+
+    <!-- Roast -->
+    <p class:list={[
+      'text-tokyo-yellow/90 italic leading-relaxed',
+      compact ? 'text-xs line-clamp-2' : 'text-sm',
+    ]}>
+      "{roast}"
+    </p>
+
+    <!-- Languages -->
+    {!compact && sortedLangs.length > 0 && (
+      <div class="flex flex-wrap gap-1.5 mt-4">
+        {sortedLangs.map(([lang, pct]) => (
+          <span
+            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-tokyo-bg/80 text-tokyo-dimmed border border-tokyo-border/30"
+          >
+            <span
+              class="w-2 h-2 rounded-full flex-shrink-0"
+              style={`background-color: ${langColors[lang] || '#565f89'};`}
+            ></span>
+            {lang} {Math.round(pct)}%
+          </span>
+        ))}
+      </div>
+    )}
+  </div>
+</a>

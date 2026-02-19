@@ -1,0 +1,87 @@
+---
+import { gradeColor } from '../lib/api';
+import type { LeaderboardEntry } from '../lib/api';
+
+interface Props {
+  entries: LeaderboardEntry[];
+  startRank?: number;
+  compact?: boolean;
+}
+
+const { entries, startRank = 1, compact = false } = Astro.props;
+
+function rankEmoji(rank: number): string {
+  if (rank === 1) return '\u{1F947}';
+  if (rank === 2) return '\u{1F948}';
+  if (rank === 3) return '\u{1F949}';
+  return `#${rank}`;
+}
+---
+
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-tokyo-border/50 text-tokyo-dimmed text-xs uppercase tracking-wider">
+        <th class="text-left py-3 px-3 w-16">Rank</th>
+        <th class="text-left py-3 px-3">Repository</th>
+        <th class="text-center py-3 px-3 w-20">AI %</th>
+        <th class="text-center py-3 px-3 w-16">Grade</th>
+        {!compact && <th class="text-left py-3 px-3 hidden sm:table-cell">Roast</th>}
+      </tr>
+    </thead>
+    <tbody>
+      {entries.map((entry, i) => {
+        const rank = startRank + i;
+        const aiPercent = Math.round(entry.ai_ratio * 100);
+        const colorClass = gradeColor(entry.grade);
+        return (
+          <tr class="border-b border-tokyo-border/20 hover:bg-tokyo-surface/50 transition-colors group">
+            <td class="py-3 px-3 text-tokyo-dimmed font-medium">
+              <span class={rank <= 3 ? 'text-base' : 'text-sm'}>
+                {rankEmoji(rank)}
+              </span>
+            </td>
+            <td class="py-3 px-3">
+              <a
+                href={`/report?id=${entry.id}`}
+                class="text-tokyo-text hover:text-tokyo-cyan transition-colors font-medium"
+              >
+                {entry.repo_name}
+              </a>
+            </td>
+            <td class="py-3 px-3 text-center">
+              <div class="flex items-center justify-center gap-2">
+                <div class="w-16 h-1.5 bg-tokyo-bg rounded-full overflow-hidden hidden sm:block">
+                  <div
+                    class="h-full rounded-full"
+                    style={`width: ${aiPercent}%; background: linear-gradient(90deg, #f7768e, #e0af68);`}
+                  />
+                </div>
+                <span class="text-tokyo-dimmed text-xs tabular-nums">
+                  {aiPercent}%
+                </span>
+              </div>
+            </td>
+            <td class="py-3 px-3 text-center">
+              <span class={`font-bold ${colorClass}`}>{entry.grade}</span>
+            </td>
+            {!compact && (
+              <td class="py-3 px-3 hidden sm:table-cell">
+                <span class="text-xs text-tokyo-yellow/80 italic line-clamp-1">
+                  {entry.roast}
+                </span>
+              </td>
+            )}
+          </tr>
+        );
+      })}
+      {entries.length === 0 && (
+        <tr>
+          <td colspan={compact ? 4 : 5} class="py-12 text-center text-tokyo-dimmed">
+            No reports yet. Be the first to scan a repo!
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+</div>

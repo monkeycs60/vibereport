@@ -1,0 +1,83 @@
+---
+interface Props {
+  label: string;
+  value: number;
+  suffix?: string;
+  prefix?: string;
+  emoji?: string;
+}
+
+const { label, value, suffix = '', prefix = '', emoji = '' } = Astro.props;
+---
+
+<div class="text-center group">
+  <div class="relative inline-block">
+    {emoji && (
+      <span class="text-2xl sm:text-3xl mb-2 block group-hover:scale-110 transition-transform duration-300">
+        {emoji}
+      </span>
+    )}
+    <div
+      class="counter text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-tokyo-cyan to-tokyo-green bg-clip-text text-transparent"
+      data-target={value}
+      data-prefix={prefix}
+      data-suffix={suffix}
+    >
+      {prefix}0{suffix}
+    </div>
+  </div>
+  <p class="text-xs sm:text-sm text-tokyo-dimmed mt-2 uppercase tracking-wider">
+    {label}
+  </p>
+</div>
+
+<script>
+  function animateCounters() {
+    const counters = document.querySelectorAll('.counter');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const el = entry.target as HTMLElement;
+            const target = parseInt(el.dataset.target || '0', 10);
+            const prefix = el.dataset.prefix || '';
+            const suffix = el.dataset.suffix || '';
+            const duration = 2000;
+            const start = performance.now();
+
+            function easeOutExpo(t: number): number {
+              return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+            }
+
+            function update(now: number) {
+              const elapsed = now - start;
+              const progress = Math.min(elapsed / duration, 1);
+              const current = Math.round(easeOutExpo(progress) * target);
+
+              if (target >= 1000000) {
+                el.textContent = `${prefix}${(current / 1000000).toFixed(1)}M${suffix}`;
+              } else if (target >= 1000) {
+                el.textContent = `${prefix}${(current / 1000).toFixed(1)}K${suffix}`;
+              } else {
+                el.textContent = `${prefix}${current}${suffix}`;
+              }
+
+              if (progress < 1) {
+                requestAnimationFrame(update);
+              }
+            }
+
+            requestAnimationFrame(update);
+            observer.unobserve(el);
+          }
+        });
+      },
+      { threshold: 0.3 }
+    );
+
+    counters.forEach((counter) => observer.observe(counter));
+  }
+
+  document.addEventListener('astro:page-load', animateCounters);
+  animateCounters();
+</script>
