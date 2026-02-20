@@ -491,7 +491,8 @@ app.get('/api/stats', async (c) => {
        AVG(ai_ratio) as avg_ai_ratio,
        AVG(score_points) as avg_score,
        MAX(score_points) as max_score,
-       SUM(total_lines) as total_lines_analyzed
+       SUM(total_commits) as total_commits,
+       SUM(ai_commits) as total_ai_commits
      FROM reports`
   ).first()
 
@@ -517,7 +518,9 @@ app.get('/api/trends', async (c) => {
        strftime('%Y-%m', ${dateCol}) as month,
        AVG(ai_ratio) as avg_ai_ratio,
        COUNT(*) as total_scans,
-       AVG(score_points) as avg_score
+       AVG(score_points) as avg_score,
+       SUM(total_commits) as total_commits,
+       SUM(ai_commits) as ai_commits
      FROM reports
      ${trendWhere}
      GROUP BY strftime('%Y-%m', ${dateCol})

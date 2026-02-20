@@ -17,7 +17,8 @@ export interface ReportData {
 export interface StatsData {
   total_reports: number;
   average_ai_percent: number;
-  total_lines_analyzed: number;
+  total_commits: number;
+  total_ai_commits: number;
 }
 
 export interface LeaderboardEntry {
@@ -46,10 +47,11 @@ export async function fetchStats(): Promise<StatsData> {
     return {
       total_reports: data.total_reports || 0,
       average_ai_percent: Math.round((data.avg_ai_ratio || 0) * 100),
-      total_lines_analyzed: data.total_lines_analyzed || 0,
+      total_commits: data.total_commits || 0,
+      total_ai_commits: data.total_ai_commits || 0,
     };
   } catch {
-    return { total_reports: 0, average_ai_percent: 0, total_lines_analyzed: 0 };
+    return { total_reports: 0, average_ai_percent: 0, total_commits: 0, total_ai_commits: 0 };
   }
 }
 
@@ -99,6 +101,8 @@ export interface TrendPoint {
   avg_ai_ratio: number;
   total_scans: number;
   avg_score: number;
+  total_commits: number;
+  ai_commits: number;
 }
 
 export interface TrendsResponse {

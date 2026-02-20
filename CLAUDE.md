@@ -1,3 +1,7 @@
+- Always document and update MD files when adding/moddying a feature or using a new service
+- Always be sure to delete dead code after replacing/refactoring it
+- Always run tests after important changes and fix them if not green
+
 # Vibereport
 
 Rust CLI tool. "The Spotify Wrapped for your code."
