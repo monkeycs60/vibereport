@@ -63,7 +63,13 @@ fn run_single(cli: &Cli, path: &Path) {
     let git_stats = match git::parser::analyze_repo(path) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("Error reading git repo: {}", e);
+            eprintln!("Error: not a git repository ({})", path.display());
+            eprintln!("  {}", e);
+            eprintln!();
+            eprintln!("Usage:");
+            eprintln!("  vibereport /path/to/repo       # scan a specific repo");
+            eprintln!("  vibereport --scan-all ~/Desktop # scan all repos in a directory");
+            eprintln!("  vibereport github:user/repo     # scan a GitHub repo");
             std::process::exit(1);
         }
     };
