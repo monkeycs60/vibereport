@@ -73,42 +73,48 @@ export async function fetchLeaderboard(
   }
 }
 
+export interface TrendPoint {
+  month: string;      // "2025-06"
+  avg_ai_ratio: number;
+  total_scans: number;
+  avg_score: number;
+}
+
+export interface TrendsResponse {
+  period: string;
+  trends: TrendPoint[];
+}
+
+export async function fetchTrends(period = '1y'): Promise<TrendsResponse> {
+  try {
+    const res = await fetch(`${API_URL}/api/trends?period=${period}`);
+    if (!res.ok) throw new Error('Failed to fetch trends');
+    return res.json();
+  } catch {
+    return { period, trends: [] };
+  }
+}
+
 export function getApiUrl(): string {
   return API_URL;
 }
 
 export function gradeColor(grade: string): string {
-  switch (grade) {
-    case 'S':
-    case 'A':
-      return 'text-tokyo-green';
-    case 'B':
-      return 'text-tokyo-cyan';
-    case 'C':
-      return 'text-tokyo-yellow';
-    case 'D':
-      return 'text-tokyo-red';
-    case 'F':
-      return 'text-red-500';
-    default:
-      return 'text-tokyo-text';
-  }
+  if (grade.startsWith('S')) return 'text-tokyo-green';
+  if (grade.startsWith('A')) return 'text-tokyo-green';
+  if (grade.startsWith('B')) return 'text-tokyo-cyan';
+  if (grade.startsWith('C')) return 'text-tokyo-yellow';
+  if (grade.startsWith('D')) return 'text-tokyo-red';
+  if (grade === 'F') return 'text-red-500';
+  return 'text-tokyo-text';
 }
 
 export function gradeBg(grade: string): string {
-  switch (grade) {
-    case 'S':
-    case 'A':
-      return 'bg-tokyo-green/20 border-tokyo-green/40';
-    case 'B':
-      return 'bg-tokyo-cyan/20 border-tokyo-cyan/40';
-    case 'C':
-      return 'bg-tokyo-yellow/20 border-tokyo-yellow/40';
-    case 'D':
-      return 'bg-tokyo-red/20 border-tokyo-red/40';
-    case 'F':
-      return 'bg-red-500/20 border-red-500/40';
-    default:
-      return 'bg-tokyo-surface border-tokyo-border';
-  }
+  if (grade.startsWith('S')) return 'bg-tokyo-green/20 border-tokyo-green/40';
+  if (grade.startsWith('A')) return 'bg-tokyo-green/20 border-tokyo-green/40';
+  if (grade.startsWith('B')) return 'bg-tokyo-cyan/20 border-tokyo-cyan/40';
+  if (grade.startsWith('C')) return 'bg-tokyo-yellow/20 border-tokyo-yellow/40';
+  if (grade.startsWith('D')) return 'bg-tokyo-red/20 border-tokyo-red/40';
+  if (grade === 'F') return 'bg-red-500/20 border-red-500/40';
+  return 'bg-tokyo-surface border-tokyo-border';
 }

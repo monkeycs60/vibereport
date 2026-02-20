@@ -1,0 +1,143 @@
+---
+interface Props {
+  trends: Array<{
+    month: string;
+    avg_ai_ratio: number;
+    total_scans: number;
+  }>;
+}
+
+const { trends } = Astro.props;
+
+// Chart dimensions
+const viewW = 800;
+const viewH = 250;
+const chartLeft = 50;
+const chartRight = 780;
+const chartTop = 20;
+const chartBottom = 200;
+const chartW = chartRight - chartLeft;
+const chartH = chartBottom - chartTop;
+
+// Map data to coordinates
+const points = trends.map((t, i) => {
+  const x = trends.length === 1
+    ? chartLeft + chartW / 2
+    : chartLeft + (i / (trends.length - 1)) * chartW;
+  const ratio = Math.min(Math.max(t.avg_ai_ratio, 0), 1);
+  const y = chartBottom - ratio * chartH;
+  return { x, y, ratio, month: t.month, scans: t.total_scans };
+});
+
+// Build SVG paths (only when we have enough data)
+const linePath = points.length >= 2
+  ? points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+  : '';
+const areaPath = points.length >= 2
+  ? linePath + ` L${points[points.length - 1].x.toFixed(1)},${chartBottom} L${points[0].x.toFixed(1)},${chartBottom} Z`
+  : '';
+
+// Format month label: "2025-06" -> "Jun 25"
+const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function formatMonth(m: string): string {
+  const parts = m.split('-');
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const yearShort = parts[0].slice(2);
+  return `${monthNames[monthIdx]} ${yearShort}`;
+}
+
+// Y-axis labels
+const yLabels = [0, 25, 50, 75, 100];
+---
+
+<div class="w-full overflow-hidden rounded-xl border border-tokyo-border/30 bg-tokyo-surface/30 p-4">
+  <h3 class="text-sm font-semibold text-tokyo-text mb-4">AI Adoption Trend</h3>
+  {trends.length >= 2 ? (
+    <svg viewBox={`0 0 ${viewW} ${viewH}`} class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#7aa2f7" stop-opacity="0.3" />
+          <stop offset="100%" stop-color="#7aa2f7" stop-opacity="0.02" />
+        </linearGradient>
+      </defs>
+
+      {/* Grid lines */}
+      {yLabels.map((pct) => {
+        const y = chartBottom - (pct / 100) * chartH;
+        return (
+          <line
+            x1={chartLeft}
+            y1={y}
+            x2={chartRight}
+            y2={y}
+            stroke="#3b4261"
+            stroke-width="0.5"
+            stroke-dasharray={pct === 0 ? 'none' : '4,4'}
+          />
+        );
+      })}
+
+      {/* Y-axis labels */}
+      {yLabels.map((pct) => {
+        const y = chartBottom - (pct / 100) * chartH;
+        return (
+          <text
+            x={chartLeft - 8}
+            y={y + 4}
+            text-anchor="end"
+            fill="#565f89"
+            font-size="10"
+            font-family="JetBrains Mono, monospace"
+          >
+            {pct}%
+          </text>
+        );
+      })}
+
+      {/* Area fill */}
+      <path d={areaPath} fill="url(#areaGradient)" />
+
+      {/* Line */}
+      <path d={linePath} fill="none" stroke="#7aa2f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+
+      {/* Data points */}
+      {points.map((p) => (
+        <circle cx={p.x} cy={p.y} r="3.5" fill="#1a1b26" stroke="#7aa2f7" stroke-width="2" />
+      ))}
+
+      {/* Hover targets with tooltips */}
+      {points.map((p) => (
+        <g class="trend-point" data-ratio={Math.round(p.ratio * 100)} data-month={p.month} data-scans={p.scans}>
+          <circle cx={p.x} cy={p.y} r="12" fill="transparent" class="cursor-pointer" />
+        </g>
+      ))}
+
+      {/* Month labels */}
+      {points.map((p, i) => {
+        // Show fewer labels if many points to avoid overlap
+        const showEvery = trends.length > 12 ? 3 : trends.length > 6 ? 2 : 1;
+        if (i % showEvery !== 0 && i !== trends.length - 1) return null;
+        return (
+          <text
+            x={p.x}
+            y={chartBottom + 20}
+            text-anchor="middle"
+            fill="#565f89"
+            font-size="9"
+            font-family="JetBrains Mono, monospace"
+          >
+            {formatMonth(p.month)}
+          </text>
+        );
+      })}
+    </svg>
+  ) : (
+    <p class="text-tokyo-dimmed text-sm text-center py-8">Not enough data yet. Share more reports!</p>
+  )}
+</div>
+
+<style>
+  .trend-point:hover circle {
+    fill: rgba(122, 162, 247, 0.1);
+  }
+</style>
