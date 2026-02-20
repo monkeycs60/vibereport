@@ -12,16 +12,18 @@ Rust CLI tool. "The Spotify Wrapped for your code."
 - Format: `cargo fmt`
 
 ## Architecture
-- src/git/ — git log parsing, AI commit detection
+- src/git/ — git log parsing, AI commit detection, timeline
 - src/git/ai_detect.rs — AI tool detection from commit messages (6 tools)
-- src/git/parser.rs — git history analysis via gix
+- src/git/parser.rs — git history analysis via gix + repo fingerprint
+- src/git/timeline.rs — monthly commit aggregation (AI evolution over time)
 - src/project/ — dependency counting, test detection, language stats
-- src/score/ — composite score calculation, roast tagline selection
-- src/render/ — terminal output (ratatui), SVG export, JSON export
-- src/share/ — upload to vibereport.dev API (behind "share" feature flag)
+- src/project/security.rs — .env detection (8 patterns), hardcoded secrets scanning
+- src/score/ — composite score calculation (uncapped, S+ for >100), roast taglines
+- src/render/ — terminal output (ASCII timeline chart), SVG export, JSON export
+- src/share/ — upload to vibereport.dev API (share by default, --no-share to opt out)
 - src/scanner/ — multi-repo discovery (--scan-all) + remote GitHub clone
-- web/api/ — Cloudflare Workers + Hono + Turso backend
-- web/frontend/ — Astro + Tailwind frontend (Tokyo Night theme)
+- web/api/ — Cloudflare Workers + Hono + D1 backend (deployed at vibereport-api.clement-serizay.workers.dev)
+- web/frontend/ — Astro SSR + Tailwind frontend on Vercel (Tokyo Night theme)
 
 ## AI Tool Detection
 Detection is based on commit message signatures (Co-Authored-By trailers, email patterns, message prefixes).
@@ -40,3 +42,26 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 1. Single repo (default): `vibereport` or `vibereport /path/to/repo`
 2. Multi-repo: `vibereport --scan-all ~/projects` — finds all git repos recursively
 3. Remote GitHub: `vibereport github:user/repo` — shallow clone to /tmp, auto-cleanup
+4. Web scan: POST /api/scan — parallel GitHub API fetching, up to ~100k commits per repo
+
+## Scoring
+- AI ratio: 0-70 points (dominant factor)
+- No tests: +15 points (peak vibe)
+- Dependencies: 0-10 points
+- Codebase size: 0-5 points
+- Security chaos: .env files (5pts each, max 20) + hardcoded secrets (3pts each, max 15)
+- Score is UNCAPPED — can exceed 100 for S+ grade
+
+## Web Stack
+- **API**: Cloudflare Workers + Hono + D1 (SQLite)
+- **Frontend**: Astro SSR on Vercel + Tailwind (Tokyo Night theme)
+- **Database**: Cloudflare D1 (vibereport-db), schema in web/api/schema.sql
+- **GitHub token**: stored as Worker secret (GITHUB_TOKEN) for 5000 req/hr rate limit
+- **Deploy API**: `cd web/api && npx wrangler deploy`
+- **Deploy frontend**: push to GitHub (Vercel auto-deploys)
+
+## Key Design Decisions
+- Share by default (--no-share to opt out) for maximum leaderboard participation
+- Repo fingerprint (first_commit_sha:remote_url) for deduplication / upsert
+- Parallel GitHub API fetching (20 concurrent pages) for scanning all commits
+- Trends use reports table (deduplicated) not scan_history for consistent averages

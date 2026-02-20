@@ -67,8 +67,8 @@ vibereport --svg report.svg
 # Export as JSON
 vibereport --json
 
-# Share to leaderboard
-vibereport --share
+# Disable auto-share to leaderboard
+vibereport --no-share
 ```
 
 ## What it detects
@@ -87,10 +87,11 @@ vibereport --share
 
 ## The Vibe Score
 
-The Vibe Score is a composite metric from 0-100 that measures how "vibe coded" your project is. Higher = more AI-assisted. This is not a quality judgment -- it's a fun metric.
+The Vibe Score is a composite metric that measures how "vibe coded" your project is. Higher = more AI-assisted. Score can exceed 100 for peak vibe chaos (S+ grade). This is not a quality judgment -- it's a fun metric.
 
 | Grade | Points | Meaning |
 |-------|--------|---------|
+| S+ | 101+ | Beyond vibe. You ARE the vibe. |
 | S | 90-100 | Peak vibe coder. The AI writes everything. |
 | A+ | 80-89 | You review more than you write. |
 | A | 70-79 | AI is your senior dev. |
@@ -106,7 +107,7 @@ The Vibe Score is a composite metric from 0-100 that measures how "vibe coded" y
 - Dependency count (more deps = more vibe)
 - Test coverage (no tests = peak vibe)
 - Codebase size
-- Security issues (.env in git = bonus vibe points)
+- Security chaos (.env files in git, hardcoded secrets = bonus vibe points)
 
 ## Features
 
@@ -116,15 +117,21 @@ The Vibe Score is a composite metric from 0-100 that measures how "vibe coded" y
 - **Roast taglines** — Burns based on your coding style ("Ships fast, tests never.")
 - **SVG export** — Beautiful shareable images for social media
 - **JSON export** — Machine-readable output for CI pipelines
+- **Timeline** — Monthly AI evolution chart (terminal + SVG)
+- **Share by default** — Auto-shares to global leaderboard (--no-share to opt out)
 - **Global leaderboard** — Compare your vibe score with other devs
+- **Trend tracking** — See how AI adoption evolves over time
 - **Multi-repo scan** — Scan all repos on your machine at once
 - **Remote scan** — Analyze any public GitHub repo without cloning locally
+- **Web scan** — Scan any GitHub repo from the browser (up to 100k commits)
 
 ## Web
 
-Visit [vibereport.dev](https://vibereport.dev) to:
-- Scan any public GitHub repo instantly
+Visit [vibereport.vercel.app](https://vibereport.vercel.app) to:
+- Scan any public GitHub repo instantly (analyzes all commits)
 - View the global leaderboard
+- Browse all scanned repos
+- Track AI adoption trends over time
 - Share your report with a permalink
 
 ## How it works
@@ -163,9 +170,9 @@ vibereport --scan-all ~/projects
 - [gix](https://github.com/Byron/gitoxide) — Pure Rust git implementation
 - [clap](https://github.com/clap-rs/clap) — CLI argument parsing
 - [owo-colors](https://github.com/jam1garner/owo-colors) — Terminal colors
-- [Hono](https://hono.dev/) — Edge API framework (backend)
-- [Astro](https://astro.build/) — Web frontend
-- [Turso](https://turso.tech/) — Edge SQLite database
+- [Hono](https://hono.dev/) — Edge API framework (Cloudflare Workers)
+- [Astro](https://astro.build/) — SSR web frontend (Vercel)
+- [Cloudflare D1](https://developers.cloudflare.com/d1/) — Edge SQLite database
 
 ## License
 
