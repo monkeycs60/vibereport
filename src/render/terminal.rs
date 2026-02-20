@@ -1,4 +1,5 @@
 use crate::git::parser::GitStats;
+use crate::git::timeline::{build_timeline, MonthlyStats};
 use crate::project::ProjectStats;
 use crate::score::calculator::VibeScore;
 use owo_colors::OwoColorize;
@@ -84,6 +85,13 @@ pub fn render_with_name(
             let pct = (**lines as f64 / project.languages.total_lines.max(1) as f64) * 100.0;
             lang_row(lang, pct);
         }
+    }
+
+    // ── Timeline ──
+    let timeline = build_timeline(&git.commits);
+    if timeline.len() >= 2 {
+        blank();
+        render_timeline_chart(&timeline);
     }
 
     // ── Security ──
@@ -448,6 +456,121 @@ fn roast_line(roast: &str) {
         " ".repeat(lp),
         text.italic().dimmed(),
         " ".repeat(rp),
+        "\u{2502}".cyan(),
+    );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Timeline bar chart
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const MONTH_NAMES: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/// Number of rows in the bar chart (0%, 20%, 40%, 60%, 80%, 100%).
+const CHART_ROWS: usize = 6;
+
+/// Maximum number of months to display (latest N if more data).
+const MAX_MONTHS: usize = 12;
+
+/// Render a vertical bar chart of AI% per month inside the box.
+///
+/// Layout within W=52 content columns:
+///
+///   "  100% │ ██ ██ ██ ██ ██ ██                    "
+///    ^^     ^ ^                                     ^
+///    2      6 8  each bar=2 + 1 space = 3 chars
+///
+/// Y-axis label: 6 chars right-aligned ("  100%")
+/// Separator: " │ " = 3 chars
+/// Prefix total: 9 display columns
+/// Bars area: up to MAX_MONTHS * 3 chars
+/// Right padding fills the rest to W.
+fn render_timeline_chart(timeline: &[MonthlyStats]) {
+    // Take at most MAX_MONTHS (latest months).
+    let months: &[MonthlyStats] = if timeline.len() > MAX_MONTHS {
+        &timeline[timeline.len() - MAX_MONTHS..]
+    } else {
+        timeline
+    };
+
+    let n = months.len();
+    // prefix = "  100% │ " = 9 display columns
+    let prefix_w: usize = 9;
+    let bars_w: usize = n * 3; // each bar = "██ " (3 cols), last one has trailing space too
+    let total_content = prefix_w + bars_w;
+    let right_pad = W.saturating_sub(total_content);
+
+    section("TIMELINE");
+
+    // Y-axis thresholds: 100, 80, 60, 40, 20, 0
+    for row in 0..CHART_ROWS {
+        let threshold = (CHART_ROWS - 1 - row) as f64 * 20.0; // 100, 80, 60, 40, 20, 0
+        let label = format!("{:>4.0}%", threshold);
+
+        // Build the bars string (uncolored) and colored parts separately
+        let mut bar_segments: Vec<String> = Vec::with_capacity(n);
+        for (i, m) in months.iter().enumerate() {
+            let pct = m.ai_ratio * 100.0;
+            let filled = pct >= threshold + 0.5; // round: show block if ai% >= threshold
+            let block = if filled { "\u{2588}\u{2588}" } else { "  " };
+            // Color gradient: alternate green and cyan by month index
+            let colored = if filled {
+                if i % 2 == 0 {
+                    format!("{}", block.green())
+                } else {
+                    format!("{}", block.cyan())
+                }
+            } else {
+                block.to_string()
+            };
+            bar_segments.push(format!("{} ", colored));
+        }
+
+        let bars_str = bar_segments.concat();
+
+        println!(
+            "  {}{} {} {}{}{}",
+            "\u{2502}".cyan(),
+            format!("  {}", label).dimmed(),
+            "\u{2502}".bright_black(),
+            bars_str,
+            " ".repeat(right_pad),
+            "\u{2502}".cyan(),
+        );
+    }
+
+    // X-axis line: "        └─────..."
+    // prefix area: 8 chars for "        " then "└" then "─" repeated
+    let axis_line_w = bars_w;
+    let axis_prefix = "        \u{2514}";
+    let axis_dashes = "\u{2500}".repeat(axis_line_w);
+    let axis_dw = display_width(axis_prefix) + axis_line_w;
+    let axis_rp = W.saturating_sub(axis_dw);
+    println!(
+        "  {}{}{}{}",
+        "\u{2502}".cyan(),
+        format!("{}{}", axis_prefix, axis_dashes).bright_black(),
+        " ".repeat(axis_rp),
+        "\u{2502}".cyan(),
+    );
+
+    // Month labels row
+    let mut labels = String::new();
+    for m in months {
+        let name = MONTH_NAMES[(m.month as usize).saturating_sub(1).min(11)];
+        labels.push_str(&format!("{:<3}", name));
+    }
+    let labels_prefix = "         "; // 9 spaces to align under bars
+    let labels_dw = display_width(labels_prefix) + display_width(&labels);
+    let labels_rp = W.saturating_sub(labels_dw);
+    println!(
+        "  {}{}{}{}{}",
+        "\u{2502}".cyan(),
+        labels_prefix,
+        labels.dimmed(),
+        " ".repeat(labels_rp),
         "\u{2502}".cyan(),
     );
 }
