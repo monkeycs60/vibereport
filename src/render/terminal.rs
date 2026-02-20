@@ -102,7 +102,10 @@ pub fn render_with_name(
             let env_msg = if project.security.env_files_count == 1 {
                 ".env committed to git!".to_string()
             } else {
-                format!("{} .env files committed to git!", project.security.env_files_count)
+                format!(
+                    "{} .env files committed to git!",
+                    project.security.env_files_count
+                )
             };
             warning_line(&env_msg);
         }
@@ -326,11 +329,10 @@ fn section(label: &str) {
     let dw = display_width(prefix_display) + display_width(label);
     let rp = W.saturating_sub(dw);
     println!(
-        "  {}{}{}{}{}",
+        "  {}{}{}{}",
         "\u{2502}".cyan(),
         format!("   \u{2500}\u{2500} {}", label).cyan().bold(),
         " ".repeat(rp),
-        "",
         "\u{2502}".cyan(),
     );
 }
@@ -420,9 +422,8 @@ fn warning_line(msg: &str) {
     let msg_dw = display_width(msg);
     let rp = W.saturating_sub(prefix_dw + msg_dw);
     println!(
-        "  {}{}{}{}{}{}",
+        "  {}   {}{}{}{}",
         "\u{2502}".cyan(),
-        "   ",
         "!! ".bright_red().bold(),
         msg.bright_red(),
         " ".repeat(rp),

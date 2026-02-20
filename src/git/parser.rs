@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use super::ai_detect::{detect_ai_tool, AiTool};
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CommitInfo {
     pub hash: String,
     pub message: String,
@@ -24,7 +25,9 @@ pub struct GitStats {
     pub ai_ratio: f64,
     pub ai_tools: Vec<(AiTool, usize)>,
     pub commits: Vec<CommitInfo>,
+    #[allow(dead_code)]
     pub first_commit_date: Option<DateTime<Utc>>,
+    #[allow(dead_code)]
     pub last_commit_date: Option<DateTime<Utc>>,
     pub repo_fingerprint: Option<String>,
 }
@@ -98,13 +101,10 @@ pub fn analyze_repo(path: &Path) -> Result<GitStats, Box<dyn std::error::Error>>
     let last_commit_date = commits.first().map(|c| c.timestamp);
 
     // Compute repo fingerprint: root commit hash + remote origin URL
-    let remote_url = repo
-        .find_remote("origin")
-        .ok()
-        .and_then(|r| {
-            r.url(gix::remote::Direction::Fetch)
-                .map(|u| u.to_bstring().to_string())
-        });
+    let remote_url = repo.find_remote("origin").ok().and_then(|r| {
+        r.url(gix::remote::Direction::Fetch)
+            .map(|u| u.to_bstring().to_string())
+    });
     let repo_fingerprint = if root_commit_full_hash.is_empty() {
         None
     } else {

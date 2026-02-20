@@ -6,6 +6,7 @@ use super::ai_detect::AiTool;
 use super::parser::CommitInfo;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct MonthlyStats {
     pub year: i32,
     pub month: u32,

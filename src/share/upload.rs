@@ -17,6 +17,7 @@ pub struct ReportPayload {
 }
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 pub struct ShareResponse {
     pub id: String,
     pub url: String,

@@ -146,7 +146,15 @@ pub fn render_svg(
     let timeline = build_timeline(&git.commits);
     // Only show if we have at least 2 months of data; cap at 12 months
     if timeline.len() >= 2 {
-        let timeline_data: Vec<_> = timeline.iter().rev().take(12).collect::<Vec<_>>().into_iter().rev().cloned().collect();
+        let timeline_data: Vec<_> = timeline
+            .iter()
+            .rev()
+            .take(12)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .cloned()
+            .collect();
         lines.push(SvgLine::Section {
             text: "TIMELINE".to_string(),
             y,
@@ -172,14 +180,20 @@ pub fn render_svg(
             let env_msg = if project.security.env_files_count == 1 {
                 ".env committed to git!".to_string()
             } else {
-                format!("{} .env files committed to git!", project.security.env_files_count)
+                format!(
+                    "{} .env files committed to git!",
+                    project.security.env_files_count
+                )
             };
             lines.push(SvgLine::Warning { text: env_msg, y });
             y += LINE_HEIGHT;
         }
         if project.security.hardcoded_secrets_hints > 0 {
             lines.push(SvgLine::Warning {
-                text: format!("{} hardcoded secret(s) detected", project.security.hardcoded_secrets_hints),
+                text: format!(
+                    "{} hardcoded secret(s) detected",
+                    project.security.hardcoded_secrets_hints
+                ),
                 y,
             });
             y += LINE_HEIGHT;
@@ -355,10 +369,17 @@ pub fn render_svg(
 
                 if num_bars > 0 {
                     let gap: usize = 4;
-                    let total_gaps = if num_bars > 1 { (num_bars - 1) * gap } else { 0 };
+                    let total_gaps = if num_bars > 1 {
+                        (num_bars - 1) * gap
+                    } else {
+                        0
+                    };
                     let bar_w = (chart_w.saturating_sub(total_gaps)) / num_bars;
 
-                    let month_names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                    let month_names = [
+                        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct",
+                        "Nov", "Dec",
+                    ];
 
                     for (i, ms) in months.iter().enumerate() {
                         let bx = chart_x + i * (bar_w + gap);

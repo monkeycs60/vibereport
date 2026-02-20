@@ -9,6 +9,7 @@ pub enum AiTool {
     CodexCli,
     GithubCopilot,
     GeminiCli,
+    #[allow(dead_code)]
     Other(String),
     Human,
 }

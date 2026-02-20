@@ -23,24 +23,23 @@ const ENV_PATTERNS: &[&str] = &[
 
 /// Patterns that hint at hardcoded secrets in source code.
 const SECRET_PATTERNS: &[&str] = &[
-    "sk-",           // OpenAI keys
-    "sk_live_",      // Stripe live keys
-    "sk_test_",      // Stripe test keys
-    "AKIA",          // AWS access key prefix
-    "ghp_",          // GitHub personal access token
-    "gho_",          // GitHub OAuth token
-    "glpat-",        // GitLab personal access token
-    "xoxb-",         // Slack bot token
-    "xoxp-",         // Slack user token
-    "Bearer eyJ",    // JWT in code
+    "sk-",        // OpenAI keys
+    "sk_live_",   // Stripe live keys
+    "sk_test_",   // Stripe test keys
+    "AKIA",       // AWS access key prefix
+    "ghp_",       // GitHub personal access token
+    "gho_",       // GitHub OAuth token
+    "glpat-",     // GitLab personal access token
+    "xoxb-",      // Slack bot token
+    "xoxp-",      // Slack user token
+    "Bearer eyJ", // JWT in code
 ];
 
 /// Check for common security issues.
 pub fn check_security(path: &Path) -> SecurityInfo {
     let mut info = SecurityInfo::default();
 
-    let gitignore_content = std::fs::read_to_string(path.join(".gitignore"))
-        .unwrap_or_default();
+    let gitignore_content = std::fs::read_to_string(path.join(".gitignore")).unwrap_or_default();
 
     // Check all .env* patterns
     for pattern in ENV_PATTERNS {
