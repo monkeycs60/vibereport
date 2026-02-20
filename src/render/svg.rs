@@ -15,7 +15,7 @@ const RED: &str = "#f7768e";
 
 const WIDTH: usize = 600;
 const PADDING: usize = 32;
-const FONT_FAMILY: &str = r#""JetBrains Mono","Fira Code","Cascadia Code",monospace"#;
+const FONT_FAMILY: &str = "'JetBrains Mono','Fira Code','Cascadia Code',monospace";
 const FONT_SIZE: usize = 13;
 const LINE_HEIGHT: usize = 22;
 
@@ -209,13 +209,13 @@ pub fn render_svg(
         match line {
             SvgLine::CenteredBold { text, y, color } => {
                 svg.push_str(&format!(
-                    r#"<text x="{cx}" y="{y}" text-anchor="middle" font-family={FONT_FAMILY} font-size="{FONT_SIZE}" font-weight="bold" fill="{color}">{}</text>"#,
+                    r#"<text x="{cx}" y="{y}" text-anchor="middle" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}" font-weight="bold" fill="{color}">{}</text>"#,
                     xml_escape(text),
                 ));
             }
             SvgLine::CenteredNormal { text, y, color } => {
                 svg.push_str(&format!(
-                    r#"<text x="{cx}" y="{y}" text-anchor="middle" font-family={FONT_FAMILY} font-size="{}" fill="{color}">{}</text>"#,
+                    r#"<text x="{cx}" y="{y}" text-anchor="middle" font-family="{FONT_FAMILY}" font-size="{}" fill="{color}">{}</text>"#,
                     FONT_SIZE - 1,
                     xml_escape(text),
                 ));
@@ -230,7 +230,7 @@ pub fn render_svg(
             SvgLine::Section { text, y } => {
                 let x = PADDING + 4;
                 svg.push_str(&format!(
-                    r#"<text x="{x}" y="{y}" font-family={FONT_FAMILY} font-size="{}" font-weight="bold" fill="{BORDER}" opacity="0.8">{}</text>"#,
+                    r#"<text x="{x}" y="{y}" font-family="{FONT_FAMILY}" font-size="{}" font-weight="bold" fill="{BORDER}" opacity="0.8">{}</text>"#,
                     FONT_SIZE - 1,
                     xml_escape(text),
                 ));
@@ -241,7 +241,7 @@ pub fn render_svg(
                 let vx = WIDTH - PADDING - 12;
                 // Label (dimmed)
                 svg.push_str(&format!(
-                    r#"<text x="{lx}" y="{y}" font-family={FONT_FAMILY} font-size="{FONT_SIZE}" fill="{DIMMED}">{}</text>"#,
+                    r#"<text x="{lx}" y="{y}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}" fill="{DIMMED}">{}</text>"#,
                     xml_escape(label),
                 ));
                 // Dots
@@ -259,7 +259,7 @@ pub fn render_svg(
                 }
                 // Value (white bold)
                 svg.push_str(&format!(
-                    r#"<text x="{vx}" y="{y}" text-anchor="end" font-family={FONT_FAMILY} font-size="{FONT_SIZE}" font-weight="bold" fill="{WHITE}">{}</text>"#,
+                    r#"<text x="{vx}" y="{y}" text-anchor="end" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}" font-weight="bold" fill="{WHITE}">{}</text>"#,
                     xml_escape(value),
                 ));
             }
@@ -273,7 +273,7 @@ pub fn render_svg(
 
                 // Language name
                 svg.push_str(&format!(
-                    r#"<text x="{lx}" y="{y}" font-family={FONT_FAMILY} font-size="{FONT_SIZE}" fill="{WHITE}">{}</text>"#,
+                    r#"<text x="{lx}" y="{y}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}" fill="{WHITE}">{}</text>"#,
                     xml_escape(lang),
                 ));
                 // Empty bar background
@@ -289,7 +289,7 @@ pub fn render_svg(
                 // Percentage
                 let pct_x = WIDTH - PADDING - 12;
                 svg.push_str(&format!(
-                    r#"<text x="{pct_x}" y="{y}" text-anchor="end" font-family={FONT_FAMILY} font-size="{}" fill="{DIMMED}">{:.1}%</text>"#,
+                    r#"<text x="{pct_x}" y="{y}" text-anchor="end" font-family="{FONT_FAMILY}" font-size="{}" fill="{DIMMED}">{:.1}%</text>"#,
                     FONT_SIZE - 1,
                     pct,
                 ));
@@ -297,13 +297,13 @@ pub fn render_svg(
             SvgLine::Warning { text, y } => {
                 let x = PADDING + 12;
                 svg.push_str(&format!(
-                    r#"<text x="{x}" y="{y}" font-family={FONT_FAMILY} font-size="{FONT_SIZE}" font-weight="bold" fill="{RED}">!! {}</text>"#,
+                    r#"<text x="{x}" y="{y}" font-family="{FONT_FAMILY}" font-size="{FONT_SIZE}" font-weight="bold" fill="{RED}">!! {}</text>"#,
                     xml_escape(text),
                 ));
             }
             SvgLine::Roast { text, y } => {
                 svg.push_str(&format!(
-                    r#"<text x="{cx}" y="{y}" text-anchor="middle" font-family={FONT_FAMILY} font-size="{}" font-style="italic" fill="{DIMMED}">{}</text>"#,
+                    r#"<text x="{cx}" y="{y}" text-anchor="middle" font-family="{FONT_FAMILY}" font-size="{}" font-style="italic" fill="{DIMMED}">{}</text>"#,
                     FONT_SIZE - 1,
                     xml_escape(text),
                 ));
