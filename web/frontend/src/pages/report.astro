@@ -69,6 +69,7 @@ const apiUrl = getApiUrl();
             <span id="rpt-ai-commits"></span>
             <span id="rpt-human-commits"></span>
           </div>
+          <p id="rpt-total-commits" class="text-xs text-tokyo-dimmed mt-1"></p>
         </div>
 
         <!-- Score -->
@@ -186,9 +187,12 @@ const apiUrl = getApiUrl();
       setTimeout(() => {
         document.getElementById('rpt-ai-bar').style.width = `${aiPct}%`;
       }, 100);
-      document.getElementById('rpt-ai-commits').textContent = `${report.ai_commits} AI commits`;
-      document.getElementById('rpt-human-commits').textContent =
-        `${report.total_commits - report.ai_commits} human commits`;
+      const aiCount = report.ai_commits || 0;
+      const humanCount = (report.total_commits || 0) - aiCount;
+      document.getElementById('rpt-ai-commits').textContent = `${aiCount.toLocaleString()} AI commits`;
+      document.getElementById('rpt-human-commits').textContent = `${humanCount.toLocaleString()} human commits`;
+      document.getElementById('rpt-total-commits').textContent =
+        `${(report.total_commits || 0).toLocaleString()} commits analyzed`;
 
       // Score + grade
       const scoreEl = document.getElementById('rpt-score');

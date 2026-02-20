@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.PUBLIC_API_URL || 'https://api.vibereport.dev';
+const API_URL = import.meta.env.PUBLIC_API_URL || 'https://vibereport-api.clement-serizay.workers.dev';
 
 export interface ReportData {
   id: string;
@@ -41,7 +41,13 @@ export async function fetchStats(): Promise<StatsData> {
   try {
     const res = await fetch(`${API_URL}/api/stats`);
     if (!res.ok) throw new Error('Failed to fetch stats');
-    return res.json();
+    const data = await res.json();
+    // API returns avg_ai_ratio (0-1), frontend expects average_ai_percent (0-100)
+    return {
+      total_reports: data.total_reports || 0,
+      average_ai_percent: Math.round((data.avg_ai_ratio || 0) * 100),
+      total_lines_analyzed: data.total_lines_analyzed || 0,
+    };
   } catch {
     return { total_reports: 0, average_ai_percent: 0, total_lines_analyzed: 0 };
   }
@@ -67,7 +73,22 @@ export async function fetchLeaderboard(
   try {
     const res = await fetch(`${API_URL}/api/leaderboard?${params}`);
     if (!res.ok) throw new Error('Failed to fetch leaderboard');
-    return res.json();
+    const data = await res.json();
+    // API returns { reports } but frontend expects { entries }
+    return {
+      entries: (data.reports || []).map((r: any) => ({
+        id: r.id,
+        repo_name: r.repo_name || r.github_username,
+        ai_ratio: r.ai_ratio,
+        grade: r.score_grade,
+        score: r.score_points,
+        roast: r.roast,
+        created_at: r.created_at,
+      })),
+      total: data.total || 0,
+      page: data.page || 1,
+      limit: data.limit || 20,
+    };
   } catch {
     return { entries: [], total: 0, page: 1, limit: 20 };
   }

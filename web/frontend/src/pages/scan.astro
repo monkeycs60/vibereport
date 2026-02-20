@@ -79,8 +79,8 @@ const apiUrl = getApiUrl();
           <!-- AI ratio bar -->
           <div class="mb-4">
             <div class="flex items-center justify-between text-xs mb-1.5">
-              <span class="text-tokyo-dimmed">AI: <span id="result-ai-pct"></span>%</span>
-              <span class="text-tokyo-dimmed">Human: <span id="result-human-pct"></span>%</span>
+              <span class="text-tokyo-dimmed">AI: <span id="result-ai-count"></span> commits (<span id="result-ai-pct"></span>%)</span>
+              <span class="text-tokyo-dimmed">Human: <span id="result-human-count"></span> commits (<span id="result-human-pct"></span>%)</span>
             </div>
             <div class="h-3 bg-tokyo-bg rounded-full overflow-hidden">
               <div id="result-ai-bar" class="h-full rounded-full transition-all duration-1000 ease-out" style="width: 0%; background: linear-gradient(90deg, #f7768e, #e0af68);"></div>
@@ -210,9 +210,11 @@ const apiUrl = getApiUrl();
 
       // Populate result
       document.getElementById('result-repo').textContent = data.repo_name || repo;
-      document.getElementById('result-commits').textContent = data.total_commits || '0';
+      document.getElementById('result-commits').textContent = (data.total_commits || 0).toLocaleString();
       document.getElementById('result-ai-pct').textContent = String(aiPct);
       document.getElementById('result-human-pct').textContent = String(humanPct);
+      document.getElementById('result-ai-count').textContent = (data.ai_commits || 0).toLocaleString();
+      document.getElementById('result-human-count').textContent = (data.human_commits || 0).toLocaleString();
       document.getElementById('result-score').textContent = data.score || '0';
       document.getElementById('result-roast').textContent = `"${data.roast || 'No roast available.'}"`;
 

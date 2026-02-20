@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS reports (
   id TEXT PRIMARY KEY,
-  repo_fingerprint TEXT,
+  repo_fingerprint TEXT UNIQUE,
   github_username TEXT,
   repo_name TEXT,
   ai_ratio REAL NOT NULL,
@@ -10,13 +10,13 @@ CREATE TABLE IF NOT EXISTS reports (
   roast TEXT NOT NULL,
   deps_count INTEGER DEFAULT 0,
   has_tests INTEGER DEFAULT 0,
+  total_commits INTEGER DEFAULT 0,
+  ai_commits INTEGER DEFAULT 0,
   total_lines INTEGER DEFAULT 0,
   languages TEXT DEFAULT '{}',
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_fingerprint ON reports(repo_fingerprint) WHERE repo_fingerprint IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS scan_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

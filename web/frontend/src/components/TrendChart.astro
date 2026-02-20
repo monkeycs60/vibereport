@@ -52,7 +52,7 @@ const yLabels = [0, 25, 50, 75, 100];
 
 <div class="w-full overflow-hidden rounded-xl border border-tokyo-border/30 bg-tokyo-surface/30 p-4">
   <h3 class="text-sm font-semibold text-tokyo-text mb-4">AI Adoption Trend</h3>
-  {trends.length >= 2 ? (
+  {trends.length >= 1 ? (
     <svg viewBox={`0 0 ${viewW} ${viewH}`} class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -95,15 +95,30 @@ const yLabels = [0, 25, 50, 75, 100];
       })}
 
       {/* Area fill */}
-      <path d={areaPath} fill="url(#areaGradient)" />
+      {areaPath && <path d={areaPath} fill="url(#areaGradient)" />}
 
       {/* Line */}
-      <path d={linePath} fill="none" stroke="#7aa2f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      {linePath && <path d={linePath} fill="none" stroke="#7aa2f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />}
 
       {/* Data points */}
       {points.map((p) => (
         <circle cx={p.x} cy={p.y} r="3.5" fill="#1a1b26" stroke="#7aa2f7" stroke-width="2" />
       ))}
+
+      {/* Single-point label */}
+      {points.length === 1 && (
+        <text
+          x={points[0].x}
+          y={points[0].y - 12}
+          text-anchor="middle"
+          fill="#7aa2f7"
+          font-size="12"
+          font-weight="bold"
+          font-family="JetBrains Mono, monospace"
+        >
+          {Math.round(points[0].ratio * 100)}% AI
+        </text>
+      )}
 
       {/* Hover targets with tooltips */}
       {points.map((p) => (
@@ -132,7 +147,7 @@ const yLabels = [0, 25, 50, 75, 100];
       })}
     </svg>
   ) : (
-    <p class="text-tokyo-dimmed text-sm text-center py-8">Not enough data yet. Share more reports!</p>
+    <p class="text-tokyo-dimmed text-sm text-center py-8">No data yet. Scan a repo to get started!</p>
   )}
 </div>
 

@@ -5,13 +5,23 @@ import { cors } from 'hono/cors'
 
 type Bindings = {
   DB: D1Database
+  GITHUB_TOKEN?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
 
 // CORS for frontend
 app.use('/*', cors({
-  origin: ['https://vibereport.dev', 'http://localhost:4321'],
+  origin: (origin) => {
+    if (!origin) return 'https://vibereport.dev'
+    if (origin.startsWith('http://localhost:')) return origin
+    if (origin === 'https://vibereport.dev') return origin
+    if (origin.endsWith('.vibereport.pages.dev') || origin === 'https://vibereport.pages.dev') return origin
+    if (origin.endsWith('.clement-serizay.workers.dev')) return origin
+    return 'https://vibereport.dev'
+  },
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
 }))
 
 // Global error handler
@@ -26,23 +36,108 @@ function generateId(): string {
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
 }
 
-// Fetch up to 500 commits from GitHub API (5 pages of 100)
-async function fetchGitHubCommits(owner: string, repo: string): Promise<any[]> {
-  const allCommits: any[] = []
-  for (let page = 1; page <= 5; page++) {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/commits?per_page=100&page=${page}`,
-      { headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'vibereport/1.0' } }
-    )
-    if (!res.ok) {
-      if (page === 1) throw new Error(`GitHub API error: ${res.status}`)
-      break // No more pages
-    }
-    const commits = await res.json()
-    if (!Array.isArray(commits) || commits.length === 0) break
-    allCommits.push(...commits)
+// ── GitHub commit analysis with parallel fetching ──
+// Processes ALL commits without holding them all in memory.
+// Fetches pages in parallel batches (20 concurrent requests).
+// 100k commits ≈ 1000 pages ≈ 50 batches ≈ ~25 seconds.
+interface ScanResult {
+  totalScanned: number
+  totalInRepo: number
+  aiCommits: number
+  toolCounts: Record<string, number>
+  oldestCommitSha: string
+}
+
+const CONCURRENCY = 20  // parallel page fetches per batch
+const MAX_PAGES = 999   // ~100k commits (Workers 1000 subrequest limit minus probe)
+
+async function analyzeGitHubRepo(owner: string, repo: string, token?: string): Promise<ScanResult> {
+  const headers: Record<string, string> = {
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'vibereport/1.0',
   }
-  return allCommits
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  // 1. Probe: get total number of pages from Link header
+  const probeRes = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/commits?per_page=100&page=1`,
+    { headers }
+  )
+  if (!probeRes.ok) throw new Error(`GitHub API error: ${probeRes.status}`)
+
+  const firstPage = await probeRes.json() as any[]
+  if (!Array.isArray(firstPage) || firstPage.length === 0) {
+    throw new Error('404')
+  }
+
+  // Parse Link header to find last page
+  let lastPage = 1
+  const linkHeader = probeRes.headers.get('link') || ''
+  const lastMatch = linkHeader.match(/page=(\d+)>;\s*rel="last"/)
+  if (lastMatch) lastPage = parseInt(lastMatch[1])
+
+  const totalInRepo = lastPage * 100 // approximate (last page may have fewer)
+
+  // 2. Process page 1 immediately
+  let totalScanned = 0
+  let aiCommits = 0
+  const toolCounts: Record<string, number> = {}
+  let oldestCommitSha = ''
+
+  function processPage(commits: any[]) {
+    for (const commit of commits) {
+      totalScanned++
+      const msg = (commit.commit?.message || '').toLowerCase()
+      const tool = detectAiTool(msg)
+      if (tool !== 'Human') {
+        aiCommits++
+        toolCounts[tool] = (toolCounts[tool] || 0) + 1
+      }
+      oldestCommitSha = commit.sha // last processed = oldest
+    }
+  }
+
+  processPage(firstPage)
+
+  // 3. Fetch remaining pages in parallel batches (capped at MAX_PAGES)
+  const pagesToFetch = Math.min(lastPage, MAX_PAGES)
+  if (pagesToFetch > 1) {
+    for (let batchStart = 2; batchStart <= pagesToFetch; batchStart += CONCURRENCY) {
+      const batchEnd = Math.min(batchStart + CONCURRENCY - 1, pagesToFetch)
+      const pageNumbers = Array.from(
+        { length: batchEnd - batchStart + 1 },
+        (_, i) => batchStart + i
+      )
+
+      const results = await Promise.all(
+        pageNumbers.map(async (page) => {
+          try {
+            const res = await fetch(
+              `https://api.github.com/repos/${owner}/${repo}/commits?per_page=100&page=${page}`,
+              { headers }
+            )
+            if (!res.ok) return []
+            const data = await res.json()
+            return Array.isArray(data) ? data : []
+          } catch {
+            return []
+          }
+        })
+      )
+
+      // Process each page's commits immediately, then discard raw data
+      let batchEmpty = true
+      for (const pageCommits of results) {
+        if (pageCommits.length > 0) batchEmpty = false
+        processPage(pageCommits)
+      }
+
+      // If an entire batch returned empty, we've hit the end
+      if (batchEmpty) break
+    }
+  }
+
+  return { totalScanned, totalInRepo, aiCommits, toolCounts, oldestCommitSha }
 }
 
 // Server-side AI tool detection (mirrors src/git/ai_detect.rs logic)
@@ -205,26 +300,13 @@ app.post('/api/scan', async (c) => {
   const repo = parts[1]
 
   try {
-    // Fetch commits from GitHub API (up to 500 via pagination)
-    const commits = await fetchGitHubCommits(owner, repo)
-    if (commits.length === 0) {
-      return c.json({ error: 'No commits found or repository not accessible' }, 404)
-    }
+    // Analyze ALL commits via parallel fetching (20 pages at a time)
+    const scan = await analyzeGitHubRepo(owner, repo, c.env.GITHUB_TOKEN)
 
-    // Detect AI tools from commit messages
-    let aiCommits = 0
-    const toolCounts: Record<string, number> = {}
-
-    for (const commit of commits) {
-      const msg = (commit.commit?.message || '').toLowerCase()
-      const tool = detectAiTool(msg)
-      if (tool !== 'Human') {
-        aiCommits++
-        toolCounts[tool] = (toolCounts[tool] || 0) + 1
-      }
-    }
-
-    const totalCommits = commits.length
+    const totalCommits = scan.totalScanned
+    const aiCommits = scan.aiCommits
+    const totalInRepo = scan.totalInRepo
+    const toolCounts = scan.toolCounts
     const aiRatio = totalCommits > 0 ? aiCommits / totalCommits : 0
     const humanCommits = totalCommits - aiCommits
 
@@ -234,8 +316,6 @@ app.post('/api/scan', async (c) => {
 
     // Simple vibe score calculation (server-side simplified version)
     let points = Math.floor(aiRatio * 70)
-    // No deps/tests/size info from GitHub API alone, so just use AI ratio
-    // Add small bonus for having many AI commits
     if (aiRatio > 0.9) points += 15
     else if (aiRatio > 0.7) points += 10
     else if (aiRatio > 0.5) points += 5
@@ -243,9 +323,10 @@ app.post('/api/scan', async (c) => {
     const grade = gradeFromPoints(points)
     const roast = pickRoast(points, aiRatio)
 
-    // Compute fingerprint from first commit
-    const firstCommitSha = commits[commits.length - 1]?.sha || ''
-    const fingerprint = firstCommitSha ? `${firstCommitSha}:https://github.com/${owner}/${repo}` : null
+    // Compute fingerprint from oldest commit
+    const fingerprint = scan.oldestCommitSha
+      ? `${scan.oldestCommitSha}:https://github.com/${owner}/${repo}`
+      : null
 
     // Save to database (upsert if fingerprint exists)
     const db = c.env.DB
@@ -255,21 +336,23 @@ app.post('/api/scan', async (c) => {
 
     if (fingerprint) {
       await db.prepare(
-        `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '{}', datetime('now'))
+        `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, total_commits, ai_commits, deps_count, has_tests, total_lines, languages, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '{}', datetime('now'))
          ON CONFLICT(repo_fingerprint) DO UPDATE SET
            ai_ratio = excluded.ai_ratio,
            ai_tool = excluded.ai_tool,
            score_points = excluded.score_points,
            score_grade = excluded.score_grade,
            roast = excluded.roast,
+           total_commits = excluded.total_commits,
+           ai_commits = excluded.ai_commits,
            updated_at = datetime('now')`
-      ).bind(id, fingerprint, githubUsername, repoName, aiRatio, primaryTool, points, grade, roast).run()
+      ).bind(id, fingerprint, githubUsername, repoName, aiRatio, primaryTool, points, grade, roast, totalCommits, aiCommits).run()
     } else {
       await db.prepare(
-        `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(id, githubUsername, repoName, aiRatio, primaryTool, points, grade, roast).run()
+        `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, total_commits, ai_commits)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(id, githubUsername, repoName, aiRatio, primaryTool, points, grade, roast, totalCommits, aiCommits).run()
     }
 
     // Record in scan_history
@@ -345,7 +428,22 @@ app.get('/api/reports/:id', async (c) => {
     return c.json({ error: 'Report not found' }, 404)
   }
 
-  return c.json({ ...row, has_tests: Boolean(row.has_tests) })
+  // Map DB columns to frontend-expected field names
+  const languages = (() => { try { return JSON.parse(String(row.languages || '{}')) } catch { return {} } })()
+  return c.json({
+    id: row.id,
+    repo_name: row.repo_name ? `${row.github_username || ''}/${row.repo_name}` : row.github_username,
+    ai_ratio: row.ai_ratio,
+    grade: row.score_grade,
+    score: row.score_points,
+    roast: row.roast,
+    total_commits: row.total_commits || 0,
+    ai_commits: row.ai_commits || 0,
+    total_lines: row.total_lines,
+    has_tests: Boolean(row.has_tests),
+    languages,
+    created_at: row.created_at,
+  })
 })
 
 // ── GET /api/leaderboard — Top scores, paginated ──
@@ -403,25 +501,25 @@ app.get('/api/stats', async (c) => {
 app.get('/api/trends', async (c) => {
   const db = c.env.DB
 
-  // Period: 6m, 1y, all (default: 1y)
   const period = c.req.query('period') || '1y'
-  let whereClause = ''
-  if (period === '6m') {
-    whereClause = "WHERE scanned_at > datetime('now', '-6 months')"
-  } else if (period === '1y') {
-    whereClause = "WHERE scanned_at > datetime('now', '-1 year')"
-  }
-  // 'all' = no where clause
+
+  // Use reports table (deduplicated) for consistent averages with /api/stats
+  const dateCol = "COALESCE(updated_at, created_at)"
+  const trendWhere = period === '6m'
+    ? `WHERE ${dateCol} > datetime('now', '-6 months')`
+    : period === '1y'
+    ? `WHERE ${dateCol} > datetime('now', '-1 year')`
+    : ''
 
   const result = await db.prepare(
     `SELECT
-       strftime('%Y-%m', scanned_at) as month,
+       strftime('%Y-%m', ${dateCol}) as month,
        AVG(ai_ratio) as avg_ai_ratio,
        COUNT(*) as total_scans,
        AVG(score_points) as avg_score
-     FROM scan_history
-     ${whereClause}
-     GROUP BY strftime('%Y-%m', scanned_at)
+     FROM reports
+     ${trendWhere}
+     GROUP BY strftime('%Y-%m', ${dateCol})
      ORDER BY month ASC`
   ).all()
 
