@@ -95,6 +95,36 @@ export async function fetchTrends(period = '1y'): Promise<TrendsResponse> {
   }
 }
 
+export interface ReportListEntry {
+  id: string;
+  github_username: string | null;
+  repo_name: string | null;
+  ai_ratio: number;
+  score_points: number;
+  score_grade: string;
+  roast: string;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface ReportsListResponse {
+  reports: ReportListEntry[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export async function fetchReportsList(page = 1, limit = 20): Promise<ReportsListResponse> {
+  try {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    const res = await fetch(`${API_URL}/api/reports/list?${params}`);
+    if (!res.ok) throw new Error('Failed to fetch reports');
+    return res.json();
+  } catch {
+    return { reports: [], total: 0, page: 1, limit: 20 };
+  }
+}
+
 export function getApiUrl(): string {
   return API_URL;
 }

@@ -1,0 +1,79 @@
+---
+import Base from '../layouts/Base.astro';
+import { fetchReportsList } from '../lib/api';
+
+const page = parseInt(Astro.url.searchParams.get('page') || '1');
+const data = await fetchReportsList(page, 20);
+---
+
+<Base title="All Reports - vibereport">
+  <section class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
+    <h1 class="text-3xl font-bold text-tokyo-text mb-2">All Reports</h1>
+    <p class="text-sm text-tokyo-dimmed mb-8">{data.total} repos scanned</p>
+
+    <div class="space-y-3">
+      {data.reports.map((report) => {
+        const aiPct = Math.round(report.ai_ratio * 100);
+        const repoUrl = report.github_username
+          ? `https://github.com/${report.github_username}/${report.repo_name}`
+          : null;
+        const reportUrl = `/report?id=${report.id}`;
+        const grade = report.score_grade;
+
+        // Grade color
+        const gradeColorClass = grade.startsWith('S') || grade.startsWith('A') ? 'text-[#9ece6a]'
+          : grade.startsWith('B') ? 'text-[#7aa2f7]'
+          : grade.startsWith('C') ? 'text-[#e0af68]'
+          : 'text-[#f7768e]';
+
+        return (
+          <a href={reportUrl} class="block p-4 rounded-xl bg-tokyo-surface/30 border border-tokyo-border/20 hover:border-tokyo-border/50 transition-all group">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3 min-w-0">
+                <span class={`text-2xl font-bold ${gradeColorClass} w-12 text-center flex-shrink-0`}>{grade}</span>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-tokyo-text truncate">
+                      {report.github_username ? `${report.github_username}/` : ''}{report.repo_name || 'unknown'}
+                    </span>
+                    {repoUrl && (
+                      <a href={repoUrl} target="_blank" rel="noopener" class="text-tokyo-dimmed hover:text-tokyo-cyan flex-shrink-0" onclick="event.stopPropagation()">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                  </div>
+                  <p class="text-xs text-tokyo-dimmed italic truncate mt-0.5">"{report.roast}"</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-4 flex-shrink-0 ml-4">
+                <span class="text-sm font-mono text-tokyo-cyan">{aiPct}% AI</span>
+                <span class="text-xs text-tokyo-dimmed">{report.score_points}pts</span>
+              </div>
+            </div>
+          </a>
+        );
+      })}
+    </div>
+
+    <!-- Pagination -->
+    {data.total > 20 && (
+      <div class="flex items-center justify-center gap-4 mt-8">
+        {page > 1 && (
+          <a href={`/reports?page=${page - 1}`} class="px-4 py-2 text-sm text-tokyo-dimmed hover:text-tokyo-text border border-tokyo-border/30 rounded-lg transition-colors">
+            &larr; Previous
+          </a>
+        )}
+        <span class="text-sm text-tokyo-dimmed">
+          Page {page} of {Math.ceil(Number(data.total) / 20)}
+        </span>
+        {page * 20 < Number(data.total) && (
+          <a href={`/reports?page=${page + 1}`} class="px-4 py-2 text-sm text-tokyo-dimmed hover:text-tokyo-text border border-tokyo-border/30 rounded-lg transition-colors">
+            Next &rarr;
+          </a>
+        )}
+      </div>
+    )}
+  </section>
+</Base>
