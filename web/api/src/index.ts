@@ -1,41 +1,10 @@
-// SQL Schema (run in Turso console):
-//
-// CREATE TABLE IF NOT EXISTS reports (
-//   id TEXT PRIMARY KEY,
-//   repo_fingerprint TEXT,
-//   github_username TEXT,
-//   repo_name TEXT,
-//   ai_ratio REAL NOT NULL,
-//   ai_tool TEXT,
-//   score_points INTEGER NOT NULL,
-//   score_grade TEXT NOT NULL,
-//   roast TEXT NOT NULL,
-//   deps_count INTEGER DEFAULT 0,
-//   has_tests INTEGER DEFAULT 0,
-//   total_lines INTEGER DEFAULT 0,
-//   languages TEXT DEFAULT '{}',
-//   created_at TEXT DEFAULT (datetime('now')),
-//   updated_at TEXT DEFAULT (datetime('now'))
-// );
-// CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_fingerprint ON reports(repo_fingerprint) WHERE repo_fingerprint IS NOT NULL;
-//
-// CREATE TABLE IF NOT EXISTS scan_history (
-//   id INTEGER PRIMARY KEY AUTOINCREMENT,
-//   repo_fingerprint TEXT,
-//   repo_name TEXT,
-//   ai_ratio REAL NOT NULL,
-//   score_points INTEGER NOT NULL,
-//   scanned_at TEXT DEFAULT (datetime('now'))
-// );
-// CREATE INDEX IF NOT EXISTS idx_scan_history_date ON scan_history(scanned_at);
+// SQL Schema: see schema.sql (apply with `wrangler d1 execute`)
 
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { createClient } from '@libsql/client/web'
 
 type Bindings = {
-  TURSO_URL: string
-  TURSO_AUTH_TOKEN: string
+  DB: D1Database
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -50,13 +19,6 @@ app.onError((err, c) => {
   console.error('API Error:', err.message)
   return c.json({ error: 'Internal server error' }, 500)
 })
-
-function getDb(env: Bindings) {
-  return createClient({
-    url: env.TURSO_URL,
-    authToken: env.TURSO_AUTH_TOKEN,
-  })
-}
 
 function generateId(): string {
   const bytes = new Uint8Array(12)
@@ -147,7 +109,7 @@ app.post('/api/reports', async (c) => {
     return c.json({ error: 'roast must be a string under 500 chars' }, 400)
   }
 
-  const db = getDb(c.env)
+  const db = c.env.DB
   const id = generateId()
   const fingerprint = typeof body.repo_fingerprint === 'string' ? body.repo_fingerprint : null
   const githubUsername = typeof body.github_username === 'string' ? body.github_username : null
@@ -160,55 +122,51 @@ app.post('/api/reports', async (c) => {
 
   if (fingerprint) {
     // Upsert: update existing report if fingerprint matches
-    await db.execute({
-      sql: `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            ON CONFLICT(repo_fingerprint) DO UPDATE SET
-              ai_ratio = excluded.ai_ratio,
-              ai_tool = excluded.ai_tool,
-              score_points = excluded.score_points,
-              score_grade = excluded.score_grade,
-              roast = excluded.roast,
-              deps_count = excluded.deps_count,
-              has_tests = excluded.has_tests,
-              total_lines = excluded.total_lines,
-              languages = excluded.languages,
-              updated_at = datetime('now')`,
-      args: [
-        id, fingerprint, githubUsername, repoName,
-        body.ai_ratio, aiTool, body.score_points, body.score_grade, body.roast,
-        depsCount, hasTests, totalLines, languages,
-      ],
-    })
+    await db.prepare(
+      `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(repo_fingerprint) DO UPDATE SET
+         ai_ratio = excluded.ai_ratio,
+         ai_tool = excluded.ai_tool,
+         score_points = excluded.score_points,
+         score_grade = excluded.score_grade,
+         roast = excluded.roast,
+         deps_count = excluded.deps_count,
+         has_tests = excluded.has_tests,
+         total_lines = excluded.total_lines,
+         languages = excluded.languages,
+         updated_at = datetime('now')`
+    ).bind(
+      id, fingerprint, githubUsername, repoName,
+      body.ai_ratio, aiTool, body.score_points, body.score_grade, body.roast,
+      depsCount, hasTests, totalLines, languages,
+    ).run()
   } else {
     // No fingerprint: plain insert (for backwards compatibility)
-    await db.execute({
-      sql: `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        id, githubUsername, repoName,
-        body.ai_ratio, aiTool, body.score_points, body.score_grade, body.roast,
-        depsCount, hasTests, totalLines, languages,
-      ],
-    })
+    await db.prepare(
+      `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      id, githubUsername, repoName,
+      body.ai_ratio, aiTool, body.score_points, body.score_grade, body.roast,
+      depsCount, hasTests, totalLines, languages,
+    ).run()
   }
 
   // Always record in scan_history for trends
-  await db.execute({
-    sql: `INSERT INTO scan_history (repo_fingerprint, repo_name, ai_ratio, score_points)
-          VALUES (?, ?, ?, ?)`,
-    args: [fingerprint, repoName, body.ai_ratio, body.score_points],
-  })
+  await db.prepare(
+    `INSERT INTO scan_history (repo_fingerprint, repo_name, ai_ratio, score_points)
+     VALUES (?, ?, ?, ?)`
+  ).bind(fingerprint, repoName, body.ai_ratio, body.score_points).run()
 
   // Get rank and total in one query
-  const statsResult = await db.execute({
-    sql: `SELECT
-            (SELECT COUNT(*) FROM reports WHERE score_points > ?) as rank,
-            (SELECT COUNT(*) FROM reports) as total`,
-    args: [body.score_points],
-  })
-  const rank = (Number(statsResult.rows[0]?.rank) || 0) + 1
-  const total = Number(statsResult.rows[0]?.total) || 1
+  const statsResult = await db.prepare(
+    `SELECT
+       (SELECT COUNT(*) FROM reports WHERE score_points > ?) as rank,
+       (SELECT COUNT(*) FROM reports) as total`
+  ).bind(body.score_points).first()
+  const rank = (Number(statsResult?.rank) || 0) + 1
+  const total = Number(statsResult?.total) || 1
   const percentile = ((total - rank) / total) * 100
 
   return c.json({
@@ -290,47 +248,43 @@ app.post('/api/scan', async (c) => {
     const fingerprint = firstCommitSha ? `${firstCommitSha}:https://github.com/${owner}/${repo}` : null
 
     // Save to database (upsert if fingerprint exists)
-    const db = getDb(c.env)
+    const db = c.env.DB
     const id = generateId()
     const repoName = repo
     const githubUsername = owner
 
     if (fingerprint) {
-      await db.execute({
-        sql: `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '{}', datetime('now'))
-              ON CONFLICT(repo_fingerprint) DO UPDATE SET
-                ai_ratio = excluded.ai_ratio,
-                ai_tool = excluded.ai_tool,
-                score_points = excluded.score_points,
-                score_grade = excluded.score_grade,
-                roast = excluded.roast,
-                updated_at = datetime('now')`,
-        args: [id, fingerprint, githubUsername, repoName, aiRatio, primaryTool, points, grade, roast],
-      })
+      await db.prepare(
+        `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '{}', datetime('now'))
+         ON CONFLICT(repo_fingerprint) DO UPDATE SET
+           ai_ratio = excluded.ai_ratio,
+           ai_tool = excluded.ai_tool,
+           score_points = excluded.score_points,
+           score_grade = excluded.score_grade,
+           roast = excluded.roast,
+           updated_at = datetime('now')`
+      ).bind(id, fingerprint, githubUsername, repoName, aiRatio, primaryTool, points, grade, roast).run()
     } else {
-      await db.execute({
-        sql: `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [id, githubUsername, repoName, aiRatio, primaryTool, points, grade, roast],
-      })
+      await db.prepare(
+        `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(id, githubUsername, repoName, aiRatio, primaryTool, points, grade, roast).run()
     }
 
     // Record in scan_history
-    await db.execute({
-      sql: `INSERT INTO scan_history (repo_fingerprint, repo_name, ai_ratio, score_points) VALUES (?, ?, ?, ?)`,
-      args: [fingerprint, repoName, aiRatio, points],
-    })
+    await db.prepare(
+      `INSERT INTO scan_history (repo_fingerprint, repo_name, ai_ratio, score_points) VALUES (?, ?, ?, ?)`
+    ).bind(fingerprint, repoName, aiRatio, points).run()
 
     // Get the actual report ID (might be the existing one if upserted)
     let reportId = id
     if (fingerprint) {
-      const existing = await db.execute({
-        sql: `SELECT id FROM reports WHERE repo_fingerprint = ?`,
-        args: [fingerprint],
-      })
-      if (existing.rows.length > 0) {
-        reportId = String(existing.rows[0].id)
+      const existing = await db.prepare(
+        `SELECT id FROM reports WHERE repo_fingerprint = ?`
+      ).bind(fingerprint).first()
+      if (existing) {
+        reportId = String(existing.id)
       }
     }
 
@@ -357,27 +311,25 @@ app.post('/api/scan', async (c) => {
 
 // ── GET /api/reports/list — List all reports, newest first ──
 app.get('/api/reports/list', async (c) => {
-  const db = getDb(c.env)
+  const db = c.env.DB
   const page = parseInt(c.req.query('page') || '1')
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 100)
   const offset = (page - 1) * limit
 
-  const result = await db.execute({
-    sql: `SELECT id, github_username, repo_name, ai_ratio, score_points, score_grade, roast, created_at, updated_at
-          FROM reports
-          ORDER BY COALESCE(updated_at, created_at) DESC
-          LIMIT ? OFFSET ?`,
-    args: [limit, offset],
-  })
+  const result = await db.prepare(
+    `SELECT id, github_username, repo_name, ai_ratio, score_points, score_grade, roast, created_at, updated_at
+     FROM reports
+     ORDER BY COALESCE(updated_at, created_at) DESC
+     LIMIT ? OFFSET ?`
+  ).bind(limit, offset).all()
 
-  const countResult = await db.execute({
-    sql: `SELECT COUNT(*) as total FROM reports`,
-    args: [],
-  })
+  const countResult = await db.prepare(
+    `SELECT COUNT(*) as total FROM reports`
+  ).first()
 
   return c.json({
-    reports: result.rows,
-    total: countResult.rows[0]?.total,
+    reports: result.results,
+    total: countResult?.total,
     page,
     limit,
   })
@@ -385,23 +337,20 @@ app.get('/api/reports/list', async (c) => {
 
 // ── GET /api/reports/:id — Get a single report ──
 app.get('/api/reports/:id', async (c) => {
-  const db = getDb(c.env)
-  const result = await db.execute({
-    sql: `SELECT * FROM reports WHERE id = ?`,
-    args: [c.req.param('id')],
-  })
+  const row = await c.env.DB.prepare(
+    `SELECT * FROM reports WHERE id = ?`
+  ).bind(c.req.param('id')).first()
 
-  if (result.rows.length === 0) {
+  if (!row) {
     return c.json({ error: 'Report not found' }, 404)
   }
 
-  const row = result.rows[0]
   return c.json({ ...row, has_tests: Boolean(row.has_tests) })
 })
 
 // ── GET /api/leaderboard — Top scores, paginated ──
 app.get('/api/leaderboard', async (c) => {
-  const db = getDb(c.env)
+  const db = c.env.DB
   const page = parseInt(c.req.query('page') || '1')
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 100)
   const offset = (page - 1) * limit
@@ -415,23 +364,21 @@ app.get('/api/leaderboard', async (c) => {
     whereClause = "WHERE created_at > datetime('now', '-30 days')"
   }
 
-  const result = await db.execute({
-    sql: `SELECT id, repo_name, github_username, ai_ratio, score_points, score_grade, roast, created_at
-          FROM reports
-          ${whereClause}
-          ORDER BY score_points DESC, created_at DESC
-          LIMIT ? OFFSET ?`,
-    args: [limit, offset],
-  })
+  const result = await db.prepare(
+    `SELECT id, repo_name, github_username, ai_ratio, score_points, score_grade, roast, created_at
+     FROM reports
+     ${whereClause}
+     ORDER BY score_points DESC, created_at DESC
+     LIMIT ? OFFSET ?`
+  ).bind(limit, offset).all()
 
-  const countResult = await db.execute({
-    sql: `SELECT COUNT(*) as total FROM reports ${whereClause}`,
-    args: [],
-  })
+  const countResult = await db.prepare(
+    `SELECT COUNT(*) as total FROM reports ${whereClause}`
+  ).first()
 
   return c.json({
-    reports: result.rows,
-    total: countResult.rows[0]?.total,
+    reports: result.results,
+    total: countResult?.total,
     page,
     limit,
   })
@@ -439,25 +386,22 @@ app.get('/api/leaderboard', async (c) => {
 
 // ── GET /api/stats — Aggregate stats ──
 app.get('/api/stats', async (c) => {
-  const db = getDb(c.env)
+  const result = await c.env.DB.prepare(
+    `SELECT
+       COUNT(*) as total_reports,
+       AVG(ai_ratio) as avg_ai_ratio,
+       AVG(score_points) as avg_score,
+       MAX(score_points) as max_score,
+       SUM(total_lines) as total_lines_analyzed
+     FROM reports`
+  ).first()
 
-  const result = await db.execute({
-    sql: `SELECT
-            COUNT(*) as total_reports,
-            AVG(ai_ratio) as avg_ai_ratio,
-            AVG(score_points) as avg_score,
-            MAX(score_points) as max_score,
-            SUM(total_lines) as total_lines_analyzed
-          FROM reports`,
-    args: [],
-  })
-
-  return c.json(result.rows[0] || {})
+  return c.json(result || {})
 })
 
 // ── GET /api/trends — Monthly scan trends ──
 app.get('/api/trends', async (c) => {
-  const db = getDb(c.env)
+  const db = c.env.DB
 
   // Period: 6m, 1y, all (default: 1y)
   const period = c.req.query('period') || '1y'
@@ -469,40 +413,35 @@ app.get('/api/trends', async (c) => {
   }
   // 'all' = no where clause
 
-  const result = await db.execute({
-    sql: `SELECT
-            strftime('%Y-%m', scanned_at) as month,
-            AVG(ai_ratio) as avg_ai_ratio,
-            COUNT(*) as total_scans,
-            AVG(score_points) as avg_score
-          FROM scan_history
-          ${whereClause}
-          GROUP BY strftime('%Y-%m', scanned_at)
-          ORDER BY month ASC`,
-    args: [],
-  })
+  const result = await db.prepare(
+    `SELECT
+       strftime('%Y-%m', scanned_at) as month,
+       AVG(ai_ratio) as avg_ai_ratio,
+       COUNT(*) as total_scans,
+       AVG(score_points) as avg_score
+     FROM scan_history
+     ${whereClause}
+     GROUP BY strftime('%Y-%m', scanned_at)
+     ORDER BY month ASC`
+  ).all()
 
   return c.json({
     period,
-    trends: result.rows,
+    trends: result.results,
   })
 })
 
 // ── GET /api/badge/:id.svg — Dynamic SVG badge ──
 app.get('/api/badge/:id.svg', async (c) => {
   const id = (c.req.param('id') ?? '').replace('.svg', '')
-  const db = getDb(c.env)
 
-  const result = await db.execute({
-    sql: `SELECT score_grade, ai_ratio FROM reports WHERE id = ?`,
-    args: [id],
-  })
+  const report = await c.env.DB.prepare(
+    `SELECT score_grade, ai_ratio FROM reports WHERE id = ?`
+  ).bind(id).first()
 
-  if (result.rows.length === 0) {
+  if (!report) {
     return c.text('Not found', 404)
   }
-
-  const report = result.rows[0]
   const grade = String(report.score_grade)
   const aiPct = Math.round(Number(report.ai_ratio) * 100)
 

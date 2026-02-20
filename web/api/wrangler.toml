@@ -2,6 +2,7 @@ name = "vibereport-api"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
-[vars]
-TURSO_URL = "libsql://vibereport-db.turso.io"
-# TURSO_AUTH_TOKEN set via wrangler secret
+[[d1_databases]]
+binding = "DB"
+database_name = "vibereport-db"
+database_id = "PLACEHOLDER"
