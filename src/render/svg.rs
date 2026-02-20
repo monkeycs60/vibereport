@@ -1,4 +1,5 @@
 use crate::git::parser::GitStats;
+use crate::git::timeline::build_timeline;
 use crate::project::ProjectStats;
 use crate::score::calculator::VibeScore;
 
@@ -139,6 +140,25 @@ pub fn render_svg(
             y += LINE_HEIGHT;
         }
         y += 4;
+    }
+
+    // ── Timeline ──
+    let timeline = build_timeline(&git.commits);
+    // Only show if we have at least 2 months of data; cap at 12 months
+    if timeline.len() >= 2 {
+        let timeline_data: Vec<_> = timeline.iter().rev().take(12).collect::<Vec<_>>().into_iter().rev().cloned().collect();
+        lines.push(SvgLine::Section {
+            text: "TIMELINE".to_string(),
+            y,
+        });
+        y += LINE_HEIGHT;
+
+        lines.push(SvgLine::TimelineChart {
+            months: timeline_data,
+            y,
+        });
+        // Chart area: 120px for bars + 20px for labels below
+        y += 120 + 20 + 8;
     }
 
     // ── Security ──
@@ -306,6 +326,69 @@ pub fn render_svg(
                     pct,
                 ));
             }
+            SvgLine::TimelineChart { months, y } => {
+                let chart_h: usize = 120;
+                let label_area: usize = 60; // left side for y-axis labels
+                let right_pad: usize = 20;
+                let chart_x = PADDING + label_area;
+                let chart_w = WIDTH - PADDING - right_pad - chart_x;
+                let chart_top = *y;
+                let chart_bottom = chart_top + chart_h;
+                let num_bars = months.len();
+
+                // Y-axis gridlines and labels (0%, 50%, 100%)
+                for (pct_label, frac) in &[("100%", 0.0), ("50%", 0.5), ("0%", 1.0)] {
+                    let ly = chart_top as f64 + chart_h as f64 * frac;
+                    // Gridline
+                    svg.push_str(&format!(
+                        r#"<line x1="{chart_x}" y1="{ly:.0}" x2="{}" y2="{ly:.0}" stroke="{DOTS}" stroke-width="0.5" opacity="0.5"/>"#,
+                        chart_x + chart_w,
+                    ));
+                    // Label
+                    let label_x = chart_x - 8;
+                    let text_y = ly + 4.0; // vertical centering for text baseline
+                    svg.push_str(&format!(
+                        r#"<text x="{label_x}" y="{text_y:.0}" text-anchor="end" font-family="{FONT_FAMILY}" font-size="{}" fill="{DIMMED}">{pct_label}</text>"#,
+                        FONT_SIZE - 2,
+                    ));
+                }
+
+                if num_bars > 0 {
+                    let gap: usize = 4;
+                    let total_gaps = if num_bars > 1 { (num_bars - 1) * gap } else { 0 };
+                    let bar_w = (chart_w.saturating_sub(total_gaps)) / num_bars;
+
+                    let month_names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+                    for (i, ms) in months.iter().enumerate() {
+                        let bx = chart_x + i * (bar_w + gap);
+
+                        // Background bar (full height)
+                        svg.push_str(&format!(
+                            r#"<rect x="{bx}" y="{chart_top}" width="{bar_w}" height="{chart_h}" rx="3" fill="{BAR_EMPTY}"/>"#,
+                        ));
+
+                        // Filled bar (from bottom, proportional to ai_ratio)
+                        let fill_h = (ms.ai_ratio * chart_h as f64).round() as usize;
+                        if fill_h > 0 {
+                            let fill_y = chart_bottom - fill_h;
+                            svg.push_str(&format!(
+                                r#"<rect x="{bx}" y="{fill_y}" width="{bar_w}" height="{fill_h}" rx="3" fill="{GREEN}"/>"#,
+                            ));
+                        }
+
+                        // Month label below bar
+                        let label_x = bx + bar_w / 2;
+                        let label_y = chart_bottom + 14;
+                        let month_idx = (ms.month as usize).saturating_sub(1).min(11);
+                        svg.push_str(&format!(
+                            r#"<text x="{label_x}" y="{label_y}" text-anchor="middle" font-family="{FONT_FAMILY}" font-size="{}" fill="{DIMMED}">{}</text>"#,
+                            FONT_SIZE - 3,
+                            month_names[month_idx],
+                        ));
+                    }
+                }
+            }
             SvgLine::Warning { text, y } => {
                 let x = PADDING + 12;
                 svg.push_str(&format!(
@@ -365,6 +448,10 @@ enum SvgLine {
     },
     Roast {
         text: String,
+        y: usize,
+    },
+    TimelineChart {
+        months: Vec<crate::git::timeline::MonthlyStats>,
         y: usize,
     },
 }
