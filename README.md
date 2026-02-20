@@ -58,6 +58,8 @@ vibereport --scan-all ~/projects
 
 # Scan a public GitHub repo
 vibereport github:anthropics/claude-code
+vibereport https://github.com/anthropics/claude-code
+vibereport github.com/anthropics/claude-code
 
 # Export as shareable SVG
 vibereport --svg report.svg

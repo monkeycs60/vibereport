@@ -19,27 +19,27 @@ pub struct VibeScore {
 pub fn calculate(git: &GitStats, project: &ProjectStats) -> VibeScore {
     let mut points: u32 = 0;
 
-    // AI ratio is the primary factor (0-50 points)
-    points += (git.ai_ratio * 50.0) as u32;
+    // AI ratio is the dominant factor (0-70 points)
+    points += (git.ai_ratio * 70.0) as u32;
 
-    // Dependencies boost (0-15 points) — more deps = more vibe
-    let deps_score = (project.deps.total as f64 / 100.0).min(1.0) * 15.0;
+    // Dependencies boost (0-10 points) — more deps = more vibe
+    let deps_score = (project.deps.total as f64 / 100.0).min(1.0) * 10.0;
     points += deps_score as u32;
 
-    // No tests = more vibe (0-15 points)
+    // No tests = more vibe (0-10 points)
     if !project.tests.has_tests {
-        points += 15;
+        points += 10;
     } else if project.tests.test_files_count < 5 {
-        points += 8;
+        points += 5;
     }
 
-    // Large codebase with high AI ratio = impressive vibe (0-10 points)
+    // Large codebase with high AI ratio = impressive vibe (0-5 points)
     let size_factor = (project.languages.total_lines as f64 / 10000.0).min(1.0);
-    points += (size_factor * 10.0) as u32;
+    points += (size_factor * 5.0) as u32;
 
-    // Security issues = extra vibe points (0-10 points)
+    // Security issues = extra vibe points (0-5 points)
     if project.security.env_in_git {
-        points += 10;
+        points += 5;
     }
 
     let points = points.min(100);
