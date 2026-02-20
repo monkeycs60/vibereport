@@ -31,9 +31,9 @@ struct Cli {
     #[arg(long)]
     json: bool,
 
-    /// Share report to vibereport.dev and get a public link
+    /// Don't share report to vibereport.dev
     #[arg(long)]
-    share: bool,
+    no_share: bool,
 }
 
 fn main() {
@@ -188,8 +188,9 @@ fn output_report(
         eprintln!("SVG saved to {}", svg_path);
     }
 
-    // ── Share to vibereport.dev ──
-    if cli.share {
+    // ── Share to vibereport.dev (default unless --no-share) ──
+    if !cli.no_share {
+        eprintln!("  Sharing stats to vibereport.dev (use --no-share to disable)");
         share_report(git_stats, project_stats, vibe_score, repo_name);
     }
 }
@@ -234,6 +235,7 @@ fn share_report(
         has_tests: project_stats.tests.has_tests,
         total_lines: project_stats.languages.total_lines,
         languages: languages_json,
+        repo_fingerprint: git_stats.repo_fingerprint.clone(),
     };
 
     eprintln!("\n  Uploading report...");

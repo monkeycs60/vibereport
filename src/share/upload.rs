@@ -13,6 +13,7 @@ pub struct ReportPayload {
     pub has_tests: bool,
     pub total_lines: usize,
     pub languages: String, // JSON string
+    pub repo_fingerprint: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -64,6 +65,7 @@ mod tests {
             has_tests: false,
             total_lines: 5000,
             languages: r#"{"TypeScript":3000,"Rust":2000}"#.into(),
+            repo_fingerprint: Some("abc123:https://github.com/user/repo.git".into()),
         };
         let json = serde_json::to_value(&payload).unwrap();
         assert_eq!(json["ai_ratio"], 0.75);
@@ -86,9 +88,33 @@ mod tests {
             has_tests: true,
             total_lines: 100,
             languages: "{}".into(),
+            repo_fingerprint: None,
         };
         let json = serde_json::to_value(&payload).unwrap();
         assert!(json["github_username"].is_null());
         assert!(json["repo_name"].is_null());
+        assert!(json["repo_fingerprint"].is_null());
+    }
+
+    #[test]
+    fn payload_includes_fingerprint_in_json() {
+        let fingerprint =
+            "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2:https://github.com/user/repo.git";
+        let payload = ReportPayload {
+            github_username: Some("user".into()),
+            repo_name: Some("repo".into()),
+            ai_ratio: 0.5,
+            ai_tool: "Claude Code".into(),
+            score_points: 50,
+            score_grade: "C".into(),
+            roast: "Mid.".into(),
+            deps_count: 10,
+            has_tests: true,
+            total_lines: 1000,
+            languages: "{}".into(),
+            repo_fingerprint: Some(fingerprint.into()),
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+        assert_eq!(json["repo_fingerprint"], fingerprint);
     }
 }

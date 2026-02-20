@@ -26,6 +26,7 @@ pub struct GitStats {
     pub commits: Vec<CommitInfo>,
     pub first_commit_date: Option<DateTime<Utc>>,
     pub last_commit_date: Option<DateTime<Utc>>,
+    pub repo_fingerprint: Option<String>,
 }
 
 /// Walk all commits in HEAD and classify each as AI or Human.
@@ -34,6 +35,7 @@ pub fn analyze_repo(path: &Path) -> Result<GitStats, Box<dyn std::error::Error>>
 
     let head = repo.head_commit()?;
     let mut commits = Vec::new();
+    let mut root_commit_full_hash = String::new();
 
     // Walk all ancestors of HEAD
     for info in head.ancestors().all()? {
@@ -49,6 +51,9 @@ pub fn analyze_repo(path: &Path) -> Result<GitStats, Box<dyn std::error::Error>>
         let ai_tool = detect_ai_tool(&message);
 
         let id_str = info.id.to_string();
+        // Track the full hash; last iteration = oldest (root) commit
+        root_commit_full_hash = id_str.clone();
+
         let short_hash = if id_str.len() >= 8 {
             id_str[..8].to_string()
         } else {
@@ -92,6 +97,24 @@ pub fn analyze_repo(path: &Path) -> Result<GitStats, Box<dyn std::error::Error>>
     let first_commit_date = commits.last().map(|c| c.timestamp);
     let last_commit_date = commits.first().map(|c| c.timestamp);
 
+    // Compute repo fingerprint: root commit hash + remote origin URL
+    let remote_url = repo
+        .find_remote("origin")
+        .ok()
+        .and_then(|r| {
+            r.url(gix::remote::Direction::Fetch)
+                .map(|u| u.to_bstring().to_string())
+        });
+    let repo_fingerprint = if root_commit_full_hash.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "{}:{}",
+            root_commit_full_hash,
+            remote_url.unwrap_or_default()
+        ))
+    };
+
     Ok(GitStats {
         total_commits: commits.len(),
         ai_commits,
@@ -101,5 +124,6 @@ pub fn analyze_repo(path: &Path) -> Result<GitStats, Box<dyn std::error::Error>>
         commits,
         first_commit_date,
         last_commit_date,
+        repo_fingerprint,
     })
 }
