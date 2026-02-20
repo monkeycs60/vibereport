@@ -1,3 +1,34 @@
+// SQL Schema (run in Turso console):
+//
+// CREATE TABLE IF NOT EXISTS reports (
+//   id TEXT PRIMARY KEY,
+//   repo_fingerprint TEXT,
+//   github_username TEXT,
+//   repo_name TEXT,
+//   ai_ratio REAL NOT NULL,
+//   ai_tool TEXT,
+//   score_points INTEGER NOT NULL,
+//   score_grade TEXT NOT NULL,
+//   roast TEXT NOT NULL,
+//   deps_count INTEGER DEFAULT 0,
+//   has_tests INTEGER DEFAULT 0,
+//   total_lines INTEGER DEFAULT 0,
+//   languages TEXT DEFAULT '{}',
+//   created_at TEXT DEFAULT (datetime('now')),
+//   updated_at TEXT DEFAULT (datetime('now'))
+// );
+// CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_fingerprint ON reports(repo_fingerprint) WHERE repo_fingerprint IS NOT NULL;
+//
+// CREATE TABLE IF NOT EXISTS scan_history (
+//   id INTEGER PRIMARY KEY AUTOINCREMENT,
+//   repo_fingerprint TEXT,
+//   repo_name TEXT,
+//   ai_ratio REAL NOT NULL,
+//   score_points INTEGER NOT NULL,
+//   scanned_at TEXT DEFAULT (datetime('now'))
+// );
+// CREATE INDEX IF NOT EXISTS idx_scan_history_date ON scan_history(scanned_at);
+
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { createClient } from '@libsql/client/web'
@@ -46,8 +77,8 @@ app.post('/api/reports', async (c) => {
   if (typeof body.ai_ratio !== 'number' || body.ai_ratio < 0 || body.ai_ratio > 1) {
     return c.json({ error: 'ai_ratio must be a number between 0 and 1' }, 400)
   }
-  if (typeof body.score_points !== 'number' || !Number.isInteger(body.score_points) || body.score_points < 0 || body.score_points > 100) {
-    return c.json({ error: 'score_points must be an integer between 0 and 100' }, 400)
+  if (typeof body.score_points !== 'number' || !Number.isInteger(body.score_points) || body.score_points < 0 || body.score_points > 200) {
+    return c.json({ error: 'score_points must be an integer between 0 and 200' }, 400)
   }
   if (typeof body.score_grade !== 'string' || body.score_grade.length > 5) {
     return c.json({ error: 'Invalid score_grade' }, 400)
@@ -58,24 +89,55 @@ app.post('/api/reports', async (c) => {
 
   const db = getDb(c.env)
   const id = generateId()
+  const fingerprint = typeof body.repo_fingerprint === 'string' ? body.repo_fingerprint : null
+  const githubUsername = typeof body.github_username === 'string' ? body.github_username : null
+  const repoName = typeof body.repo_name === 'string' ? body.repo_name : null
+  const aiTool = typeof body.ai_tool === 'string' ? body.ai_tool : null
+  const depsCount = typeof body.deps_count === 'number' ? body.deps_count : 0
+  const hasTests = body.has_tests ? 1 : 0
+  const totalLines = typeof body.total_lines === 'number' ? body.total_lines : 0
+  const languages = typeof body.languages === 'string' ? body.languages : '{}'
 
+  if (fingerprint) {
+    // Upsert: update existing report if fingerprint matches
+    await db.execute({
+      sql: `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(repo_fingerprint) DO UPDATE SET
+              ai_ratio = excluded.ai_ratio,
+              ai_tool = excluded.ai_tool,
+              score_points = excluded.score_points,
+              score_grade = excluded.score_grade,
+              roast = excluded.roast,
+              deps_count = excluded.deps_count,
+              has_tests = excluded.has_tests,
+              total_lines = excluded.total_lines,
+              languages = excluded.languages,
+              updated_at = datetime('now')`,
+      args: [
+        id, fingerprint, githubUsername, repoName,
+        body.ai_ratio, aiTool, body.score_points, body.score_grade, body.roast,
+        depsCount, hasTests, totalLines, languages,
+      ],
+    })
+  } else {
+    // No fingerprint: plain insert (for backwards compatibility)
+    await db.execute({
+      sql: `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        id, githubUsername, repoName,
+        body.ai_ratio, aiTool, body.score_points, body.score_grade, body.roast,
+        depsCount, hasTests, totalLines, languages,
+      ],
+    })
+  }
+
+  // Always record in scan_history for trends
   await db.execute({
-    sql: `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [
-      id,
-      (typeof body.github_username === 'string' ? body.github_username : null),
-      (typeof body.repo_name === 'string' ? body.repo_name : null),
-      body.ai_ratio,
-      (typeof body.ai_tool === 'string' ? body.ai_tool : null),
-      body.score_points,
-      body.score_grade,
-      body.roast,
-      (typeof body.deps_count === 'number' ? body.deps_count : 0),
-      body.has_tests ? 1 : 0,
-      (typeof body.total_lines === 'number' ? body.total_lines : 0),
-      (typeof body.languages === 'string' ? body.languages : '{}'),
-    ],
+    sql: `INSERT INTO scan_history (repo_fingerprint, repo_name, ai_ratio, score_points)
+          VALUES (?, ?, ?, ?)`,
+    args: [fingerprint, repoName, body.ai_ratio, body.score_points],
   })
 
   // Get rank and total in one query
@@ -167,6 +229,39 @@ app.get('/api/stats', async (c) => {
   })
 
   return c.json(result.rows[0] || {})
+})
+
+// ── GET /api/trends — Monthly scan trends ──
+app.get('/api/trends', async (c) => {
+  const db = getDb(c.env)
+
+  // Period: 6m, 1y, all (default: 1y)
+  const period = c.req.query('period') || '1y'
+  let whereClause = ''
+  if (period === '6m') {
+    whereClause = "WHERE scanned_at > datetime('now', '-6 months')"
+  } else if (period === '1y') {
+    whereClause = "WHERE scanned_at > datetime('now', '-1 year')"
+  }
+  // 'all' = no where clause
+
+  const result = await db.execute({
+    sql: `SELECT
+            strftime('%Y-%m', scanned_at) as month,
+            AVG(ai_ratio) as avg_ai_ratio,
+            COUNT(*) as total_scans,
+            AVG(score_points) as avg_score
+          FROM scan_history
+          ${whereClause}
+          GROUP BY strftime('%Y-%m', scanned_at)
+          ORDER BY month ASC`,
+    args: [],
+  })
+
+  return c.json({
+    period,
+    trends: result.rows,
+  })
 })
 
 // ── GET /api/badge/:id.svg — Dynamic SVG badge ──
