@@ -87,10 +87,23 @@ pub fn render_with_name(
     }
 
     // ── Security ──
-    if project.security.env_in_git {
+    if project.security.env_in_git || project.security.hardcoded_secrets_hints > 0 {
         blank();
         section("SECURITY");
-        warning_line(".env committed to git!");
+        if project.security.env_files_count > 0 {
+            let env_msg = if project.security.env_files_count == 1 {
+                ".env committed to git!".to_string()
+            } else {
+                format!("{} .env files committed to git!", project.security.env_files_count)
+            };
+            warning_line(&env_msg);
+        }
+        if project.security.hardcoded_secrets_hints > 0 {
+            warning_line(&format!(
+                "{} hardcoded secret(s) detected",
+                project.security.hardcoded_secrets_hints
+            ));
+        }
     }
 
     blank();
@@ -172,6 +185,7 @@ pub fn render_multi(report: &crate::scanner::multi_report::MultiReport) {
 /// Convert numeric points to a letter grade.
 fn grade_from_points(points: u32) -> &'static str {
     match points {
+        101.. => "S+",
         90..=100 => "S",
         80..=89 => "A+",
         70..=79 => "A",
@@ -454,6 +468,7 @@ fn fmt_num(n: usize) -> String {
 
 fn emoji_for_grade(grade: &str) -> &'static str {
     match grade {
+        "S+" => "\u{1F451}\u{1F525}\u{1F525}",
         "S" => "\u{1F525}\u{1F525}\u{1F525}",
         "A+" => "\u{1F525}\u{1F525}",
         "A" => "\u{1F525}",
@@ -486,7 +501,7 @@ mod tests {
 
     #[test]
     fn emoji_for_every_grade() {
-        for g in &["S", "A+", "A", "B+", "B", "C+", "C", "D", "F"] {
+        for g in &["S+", "S", "A+", "A", "B+", "B", "C+", "C", "D", "F"] {
             assert!(!emoji_for_grade(g).is_empty());
         }
     }

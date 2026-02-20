@@ -142,17 +142,29 @@ pub fn render_svg(
     }
 
     // ── Security ──
-    if project.security.env_in_git {
+    if project.security.env_in_git || project.security.hardcoded_secrets_hints > 0 {
         lines.push(SvgLine::Section {
             text: "SECURITY".to_string(),
             y,
         });
         y += LINE_HEIGHT;
-        lines.push(SvgLine::Warning {
-            text: ".env committed to git!".to_string(),
-            y,
-        });
-        y += LINE_HEIGHT + 4;
+        if project.security.env_files_count > 0 {
+            let env_msg = if project.security.env_files_count == 1 {
+                ".env committed to git!".to_string()
+            } else {
+                format!("{} .env files committed to git!", project.security.env_files_count)
+            };
+            lines.push(SvgLine::Warning { text: env_msg, y });
+            y += LINE_HEIGHT;
+        }
+        if project.security.hardcoded_secrets_hints > 0 {
+            lines.push(SvgLine::Warning {
+                text: format!("{} hardcoded secret(s) detected", project.security.hardcoded_secrets_hints),
+                y,
+            });
+            y += LINE_HEIGHT;
+        }
+        y += 4;
     }
 
     // ── Separator ──
@@ -511,6 +523,7 @@ mod tests {
         let git = mock_git_stats(0.3);
         let mut project = mock_project_stats();
         project.security.env_in_git = true;
+        project.security.env_files_count = 1;
         let score = mock_vibe_score(0.3);
         let svg = render_svg(&git, &project, &score, "leaky-repo");
 

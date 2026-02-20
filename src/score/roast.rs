@@ -24,6 +24,7 @@ pub fn pick_roast(points: u32, ai_ratio: f64, project: &ProjectStats) -> String 
 
     // Score-based roasts
     match points {
+        101.. => "Beyond vibe. You are the vibe.",
         90..=100 => "The AI is the senior dev here.",
         80..=89 => "You prompt, Claude delivers.",
         70..=79 => "More vibes than version control.",
