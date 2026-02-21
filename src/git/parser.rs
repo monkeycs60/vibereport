@@ -47,6 +47,19 @@ pub fn parse_since(since: &str) -> Option<DateTime<Utc>> {
     }
 }
 
+/// Strip embedded credentials from a remote URL.
+/// Converts `https://user:token@github.com/...` to `https://github.com/...`.
+fn strip_url_credentials(url: &str) -> String {
+    if let Some(at_pos) = url.find('@') {
+        if let Some(scheme_end) = url.find("://") {
+            let scheme = &url[..scheme_end + 3];
+            let after_at = &url[at_pos + 1..];
+            return format!("{}{}", scheme, after_at);
+        }
+    }
+    url.to_string()
+}
+
 /// Walk all commits in HEAD and classify each as AI or Human.
 /// If `since` is Some, only commits at or after the cutoff are counted,
 /// but the root commit hash is still tracked for fingerprinting.
@@ -135,11 +148,8 @@ pub fn analyze_repo(
     let repo_fingerprint = if root_commit_full_hash.is_empty() {
         None
     } else {
-        Some(format!(
-            "{}:{}",
-            root_commit_full_hash,
-            remote_url.unwrap_or_default()
-        ))
+        let sanitized_url = strip_url_credentials(&remote_url.unwrap_or_default());
+        Some(format!("{}:{}", root_commit_full_hash, sanitized_url))
     };
 
     Ok(GitStats {
@@ -195,5 +205,35 @@ mod tests {
         assert!(parse_since("not-a-date").is_none());
         assert!(parse_since("2025-13-01").is_none());
         assert!(parse_since("yesterday").is_none());
+    }
+
+    #[test]
+    fn strip_credentials_from_https_url() {
+        assert_eq!(
+            strip_url_credentials("https://user:token@github.com/org/repo.git"),
+            "https://github.com/org/repo.git"
+        );
+    }
+
+    #[test]
+    fn strip_credentials_leaves_clean_url_unchanged() {
+        assert_eq!(
+            strip_url_credentials("https://github.com/org/repo.git"),
+            "https://github.com/org/repo.git"
+        );
+    }
+
+    #[test]
+    fn strip_credentials_from_ssh_url() {
+        // SSH URLs with git@ don't have a :// scheme, so they pass through unchanged
+        assert_eq!(
+            strip_url_credentials("git@github.com:org/repo.git"),
+            "git@github.com:org/repo.git"
+        );
+    }
+
+    #[test]
+    fn strip_credentials_empty_url() {
+        assert_eq!(strip_url_credentials(""), "");
     }
 }

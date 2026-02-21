@@ -4,8 +4,12 @@ import LeaderboardTable from '../components/LeaderboardTable.astro';
 import { fetchLeaderboard, getApiUrl } from '../lib/api';
 
 const page = 1;
-const period = Astro.url.searchParams.get('period') || undefined;
-const sort = Astro.url.searchParams.get('sort') || 'score';
+const VALID_PERIODS = ['week', 'month'];
+const VALID_SORTS = ['ai', 'score'];
+const rawPeriod = Astro.url.searchParams.get('period');
+const period = VALID_PERIODS.includes(rawPeriod) ? rawPeriod : undefined;
+const rawSort = Astro.url.searchParams.get('sort');
+const sort = VALID_SORTS.includes(rawSort) ? rawSort : 'score';
 const limit = 50;
 
 let leaderboard = { entries: [], total: 0, page: 1, limit: 50 };
@@ -146,32 +150,64 @@ const totalItems = leaderboard.total;
 
       const tr = document.createElement('tr');
       tr.className = 'border-b border-tokyo-border/20 hover:bg-tokyo-surface/50 transition-colors group';
-      tr.innerHTML = `
-        <td class="py-3 px-3 text-tokyo-dimmed font-medium">
-          <span class="${rank <= 3 ? 'text-base' : 'text-sm'}">
-            ${rankEmoji(rank)}
-          </span>
-        </td>
-        <td class="py-3 px-3">
-          <a href="/report?id=${entry.id}" class="text-tokyo-text hover:text-tokyo-cyan transition-colors font-medium">
-            ${repoName}
-          </a>
-        </td>
-        <td class="py-3 px-3 text-center">
-          <div class="flex items-center justify-center gap-2">
-            <div class="w-16 h-1.5 bg-tokyo-bg rounded-full overflow-hidden hidden sm:block">
-              <div class="h-full rounded-full" style="width: ${aiPercent}%; background: linear-gradient(90deg, #f7768e, #e0af68);"></div>
-            </div>
-            <span class="text-tokyo-dimmed text-xs tabular-nums">${aiPercent}%</span>
-          </div>
-        </td>
-        <td class="py-3 px-3 text-center">
-          <span class="text-xs text-tokyo-dimmed tabular-nums">${entry.score_points}</span>
-        </td>
-        <td class="py-3 px-3 text-center">
-          <span class="font-bold ${colorClass}">${entry.score_grade}</span>
-        </td>
-      `;
+
+      // Rank cell
+      const tdRank = document.createElement('td');
+      tdRank.className = 'py-3 px-3 text-tokyo-dimmed font-medium';
+      const rankSpan = document.createElement('span');
+      rankSpan.className = rank <= 3 ? 'text-base' : 'text-sm';
+      rankSpan.textContent = rankEmoji(rank);
+      tdRank.appendChild(rankSpan);
+      tr.appendChild(tdRank);
+
+      // Repo name cell
+      const tdName = document.createElement('td');
+      tdName.className = 'py-3 px-3';
+      const nameLink = document.createElement('a');
+      nameLink.href = '/report?id=' + encodeURIComponent(entry.id);
+      nameLink.className = 'text-tokyo-text hover:text-tokyo-cyan transition-colors font-medium';
+      nameLink.textContent = repoName;
+      tdName.appendChild(nameLink);
+      tr.appendChild(tdName);
+
+      // AI% bar cell
+      const tdAi = document.createElement('td');
+      tdAi.className = 'py-3 px-3 text-center';
+      const aiWrapper = document.createElement('div');
+      aiWrapper.className = 'flex items-center justify-center gap-2';
+      const barOuter = document.createElement('div');
+      barOuter.className = 'w-16 h-1.5 bg-tokyo-bg rounded-full overflow-hidden hidden sm:block';
+      const barInner = document.createElement('div');
+      barInner.className = 'h-full rounded-full';
+      barInner.style.width = Math.min(Math.max(aiPercent, 0), 100) + '%';
+      barInner.style.background = 'linear-gradient(90deg, #f7768e, #e0af68)';
+      barOuter.appendChild(barInner);
+      aiWrapper.appendChild(barOuter);
+      const aiLabel = document.createElement('span');
+      aiLabel.className = 'text-tokyo-dimmed text-xs tabular-nums';
+      aiLabel.textContent = aiPercent + '%';
+      aiWrapper.appendChild(aiLabel);
+      tdAi.appendChild(aiWrapper);
+      tr.appendChild(tdAi);
+
+      // Score points cell
+      const tdScore = document.createElement('td');
+      tdScore.className = 'py-3 px-3 text-center';
+      const scoreSpan = document.createElement('span');
+      scoreSpan.className = 'text-xs text-tokyo-dimmed tabular-nums';
+      scoreSpan.textContent = entry.score_points;
+      tdScore.appendChild(scoreSpan);
+      tr.appendChild(tdScore);
+
+      // Grade cell
+      const tdGrade = document.createElement('td');
+      tdGrade.className = 'py-3 px-3 text-center';
+      const gradeSpan = document.createElement('span');
+      gradeSpan.className = 'font-bold ' + colorClass;
+      gradeSpan.textContent = entry.score_grade;
+      tdGrade.appendChild(gradeSpan);
+      tr.appendChild(tdGrade);
+
       return tr;
     }
 

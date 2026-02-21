@@ -28,7 +28,7 @@ pub struct ShareResponse {
     pub percentile: Option<f64>,
 }
 
-const API_URL: &str = "https://api.vibereport.dev";
+const API_URL: &str = "https://vibereport-api.clement-serizay.workers.dev";
 
 /// Upload a report to the vibereport.dev API.
 /// Returns the share URL and leaderboard rank.

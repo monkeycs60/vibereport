@@ -16,11 +16,27 @@ pub fn parse_github_ref(input: &str) -> Option<(String, String)> {
     }
 }
 
+/// Validate that a GitHub user or repo name contains only safe characters.
+/// Prevents path traversal attacks (e.g., "../../etc" or "../passwd").
+fn is_valid_github_name(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 255
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+}
+
 /// Shallow-clone a GitHub repo into a temp directory for analysis.
 /// Uses --depth 500 to get enough commit history for meaningful AI detection.
 /// NOTE: Uses system `git` instead of `gix` because gix does not support
 /// shallow clone (--depth) which is critical for performance on large repos.
 pub fn clone_for_analysis(user: &str, repo: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    if !is_valid_github_name(user) {
+        return Err(format!("Invalid GitHub username: {}", user).into());
+    }
+    if !is_valid_github_name(repo) {
+        return Err(format!("Invalid GitHub repo name: {}", repo).into());
+    }
+
     let tmp_dir = std::env::temp_dir().join(format!("vibereport-{}-{}", user, repo));
 
     // Clean up previous clone if exists
@@ -87,5 +103,24 @@ mod tests {
         assert_eq!(parse_github_ref("github:"), None);
         assert_eq!(parse_github_ref("github:user"), None);
         assert_eq!(parse_github_ref("github:/repo"), None);
+    }
+
+    #[test]
+    fn valid_github_names() {
+        assert!(is_valid_github_name("vercel"));
+        assert!(is_valid_github_name("rust-lang"));
+        assert!(is_valid_github_name("next.js"));
+        assert!(is_valid_github_name("my_repo"));
+        assert!(is_valid_github_name("user123"));
+    }
+
+    #[test]
+    fn rejects_invalid_github_names() {
+        assert!(!is_valid_github_name(""));
+        assert!(!is_valid_github_name("../etc"));
+        assert!(!is_valid_github_name("user/repo"));
+        assert!(!is_valid_github_name("a".repeat(256).as_str()));
+        assert!(!is_valid_github_name("user name"));
+        assert!(!is_valid_github_name("user@name"));
     }
 }

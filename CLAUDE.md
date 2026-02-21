@@ -49,7 +49,7 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 1. Single repo (default): `vibereport` or `vibereport /path/to/repo`
 2. Multi-repo: `vibereport --scan-all ~/projects` — finds all git repos recursively
 3. Remote GitHub: `vibereport github:user/repo` — shallow clone to /tmp, auto-cleanup
-4. Web scan: POST /api/scan — parallel GitHub API fetching, up to ~100k commits per repo
+4. Web scan: POST /api/scan — parallel GitHub API fetching, capped at 50 pages (~5k commits) per web scan, 10-min cache per repo
 
 ## Scoring (Vibe Score — composite, basis for grade S+ to F)
 - AI ratio: 0-60 points (dominant factor)
@@ -67,7 +67,7 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 
 ## Domain & Web Stack
 - **Domain**: vibereport.dev (Cloudflare Registrar)
-- **Frontend**: Astro SSR on Vercel + Tailwind (Tokyo Night theme) — https://vibereport.dev
+- **Frontend**: Astro SSR on Vercel + Tailwind (Tokyo Night theme) — https://www.vibereport.dev
 - **API**: Cloudflare Workers + Hono + D1 (SQLite) — https://vibereport-api.clement-serizay.workers.dev
 - **VPS Worker**: Axum HTTP server on OVH VPS — https://scan.vibereport.dev (Cloudflare Tunnel)
 - **Database**: Cloudflare D1 (vibereport-db), schema in web/api/schema.sql
@@ -80,9 +80,10 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 ## VPS Scan Worker
 - POST /scan — user web scans (semaphore: 2 concurrent)
 - POST /index-scan — daily index cron scan (semaphore: 3 concurrent, fire-and-forget via tokio::spawn)
-- Port 3001, exposed via Cloudflare Tunnel at https://scan.vibereport.dev
+- Port 3001, binds to 127.0.0.1, exposed via Cloudflare Tunnel at https://scan.vibereport.dev
 - Named tunnel: `vibereport-scan` (ID: 1c244fbe-83cf-4435-aadb-b5fb09f7c9cd)
-- Auth: `Authorization: Bearer {VPS_AUTH_TOKEN}`
+- Auth: `Authorization: Bearer {VPS_AUTH_TOKEN}` (constant-time comparison)
+- Env vars: `AUTH_TOKEN` (required), `API_URL` (default: vibereport-api worker URL), `VIBEREPORT_BIN`, `PORT`
 - Clones repos with `git clone --bare --shallow-since`, runs `vibereport --json`
 - Clone timeout: 120s, analysis timeout: 60s (prevents massive repos from blocking slots)
 - systemd services: vibereport-worker (Axum) + cloudflared-tunnel (Cloudflare Tunnel)
@@ -124,7 +125,14 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 
 ## Key Design Decisions
 - Share by default (--no-share to opt out) for maximum leaderboard participation
-- Repo fingerprint (first_commit_sha:remote_url) for deduplication / upsert
+- Repo fingerprint (first_commit_sha:remote_url) for deduplication / upsert — credentials stripped from URL before fingerprinting
 - Parallel GitHub API fetching (20 concurrent pages) for scanning all commits
 - Trends use reports table (deduplicated) not scan_history for consistent averages
 - VPS scanning for full vibe detection (chaos badges) — GitHub API fallback for basic scans
+
+## Security Hardening
+- **VPS Worker**: repo URLs validated against strict GitHub regex (no SSRF), `since` validated as YYYY-MM-DD, constant-time token comparison (subtle crate), binds to 127.0.0.1 only, git stderr never leaked to caller, `api_url` hardcoded via `API_URL` env var (not from request body)
+- **API**: IP-based rate limiting (5 scans/min, 10 reports/min, 60 reads/min via CF-Connecting-IP), server-side re-derivation of score_grade/roast (client values ignored), chaos_badges validated against allowlist, input length limits on all string fields, scan_date validated, web scans capped at 50 pages (WEB_MAX_PAGES), 10-min scan cache per repo, generic error messages (no internal details leaked)
+- **CORS**: only `vibereport.dev` and `www.vibereport.dev` allowed (no wildcard *.vercel.app)
+- **Frontend**: all innerHTML replaced with textContent/createElement for API data (XSS prevention), URL params allowlisted before define:vars, security headers via vercel.json (X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy)
+- **CLI**: GitHub user/repo validated against `[a-zA-Z0-9_.-]+` (no path traversal), file reads capped at 1MB (OOM prevention), symlinks skipped during directory walks, credentials stripped from remote URLs in fingerprint

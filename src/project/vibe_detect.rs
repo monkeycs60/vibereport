@@ -1,5 +1,19 @@
 use std::path::Path;
 
+/// Check if a path is a regular file (not a symlink) to prevent symlink attacks.
+fn is_regular_file(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_file())
+        .unwrap_or(false)
+}
+
+/// Check if a path is a regular directory (not a symlink) to prevent symlink attacks.
+fn is_regular_dir(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_dir())
+        .unwrap_or(false)
+}
+
 #[derive(Debug, Default)]
 pub struct VibeInfo {
     /// No .eslintrc*, .prettierrc*, biome.json, deno.json, oxlint
@@ -119,6 +133,10 @@ fn count_todos(path: &Path) -> usize {
     count
 }
 
+/// Maximum file size to read (1 MB). Files larger than this are skipped
+/// to prevent out-of-memory conditions on huge generated/vendored files.
+const MAX_FILE_SIZE: u64 = 1_048_576;
+
 fn count_todos_recursive(path: &Path, skip_dirs: &[&str], count: &mut usize, depth: usize) {
     if depth > 10 || *count > 100 { return; } // early exit
     let entries = match std::fs::read_dir(path) {
@@ -128,14 +146,20 @@ fn count_todos_recursive(path: &Path, skip_dirs: &[&str], count: &mut usize, dep
     for entry in entries.flatten() {
         let p = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
-        if p.is_dir() {
+        if is_regular_dir(&p) {
             if !skip_dirs.contains(&name.as_str()) {
                 count_todos_recursive(&p, skip_dirs, count, depth + 1);
             }
-        } else if p.is_file() {
+        } else if is_regular_file(&p) {
             if let Some(ext) = p.extension() {
                 let ext = ext.to_string_lossy();
                 if matches!(ext.as_ref(), "rs" | "ts" | "js" | "py" | "go" | "rb" | "java" | "tsx" | "jsx" | "vue" | "svelte" | "php" | "swift" | "kt" | "c" | "cpp" | "cs" | "h") {
+                    // Skip files larger than 1 MB to avoid OOM
+                    if let Ok(meta) = std::fs::metadata(&p) {
+                        if meta.len() > MAX_FILE_SIZE {
+                            continue;
+                        }
+                    }
                     if let Ok(content) = std::fs::read_to_string(&p) {
                         for line in content.lines() {
                             let upper = line.to_uppercase();

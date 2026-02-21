@@ -1,16 +1,30 @@
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use chrono::Datelike;
 use futures::stream::{self, StreamExt};
+use regex::Regex;
 use serde::Deserialize;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+use subtle::ConstantTimeEq;
 use tokio::sync::Semaphore;
 use uuid::Uuid;
+
+// FIX 1: Regex patterns for repo URL validation
+static GITHUB_URL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^https://github\.com/[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+(\.git)?$").unwrap()
+});
+static REPO_SLUG_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$").unwrap());
+
+// FIX 3: Regex for since date validation
+static SINCE_DATE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap());
 
 struct AppState {
     user_semaphore: Semaphore,  // 2 slots for user web scans
     index_semaphore: Semaphore, // 3 slots for index cron
     auth_token: String,
     vibereport_bin: String,
+    api_url: String, // FIX 2: api_url from env, not from request
 }
 
 #[derive(Deserialize)]
@@ -24,12 +38,13 @@ async fn scan_handler(
     headers: axum::http::HeaderMap,
     Json(req): Json<ScanRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // Auth check
+    // Auth check (FIX 4: constant-time comparison)
     let auth = headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    if auth != format!("Bearer {}", state.auth_token) {
+    let expected = format!("Bearer {}", state.auth_token);
+    if auth.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() != 1 {
         return Err((StatusCode::UNAUTHORIZED, "Invalid token".into()));
     }
 
@@ -42,13 +57,33 @@ async fn scan_handler(
 
     let uuid = Uuid::new_v4().to_string();
     let tmp_dir = format!("/tmp/vibereport-{}", uuid);
-    let since = req.since.unwrap_or_else(|| "2025-01-01".into());
 
-    // Parse repo: "user/repo" or "github:user/repo" or URL
+    // FIX 3: Validate since parameter
+    let since = req.since.unwrap_or_else(|| "2025-01-01".into());
+    if !SINCE_DATE_RE.is_match(&since) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Invalid since format, expected YYYY-MM-DD".into(),
+        ));
+    }
+
+    // FIX 1: Parse repo with strict validation
     let repo_url = if req.repo.starts_with("http") {
+        if !GITHUB_URL_RE.is_match(&req.repo) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Invalid repo URL: must be https://github.com/{user}/{repo}".into(),
+            ));
+        }
         req.repo.clone()
     } else {
         let cleaned = req.repo.replace("github:", "");
+        if !REPO_SLUG_RE.is_match(&cleaned) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Invalid repo slug: must be {user}/{repo}".into(),
+            ));
+        }
         format!("https://github.com/{}.git", cleaned)
     };
 
@@ -72,10 +107,12 @@ async fn scan_handler(
 
     if !clone_result.status.success() {
         let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
+        // FIX 5: Log stderr, return generic message
         let stderr = String::from_utf8_lossy(&clone_result.stderr);
+        eprintln!("Clone failed for {}: {}", repo_url, stderr);
         return Err((
             StatusCode::BAD_REQUEST,
-            format!("Clone failed: {}", stderr),
+            "Clone failed: repository not accessible".into(),
         ));
     }
 
@@ -85,7 +122,11 @@ async fn scan_handler(
         .output()
         .await
         .map_err(|e| {
-            let _ = std::fs::remove_dir_all(&tmp_dir);
+            // FIX 7: Use tokio::fs in async context (spawn blocking cleanup)
+            let tmp = tmp_dir.clone();
+            tokio::spawn(async move {
+                let _ = tokio::fs::remove_dir_all(&tmp).await;
+            });
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Analysis failed: {}", e),
@@ -96,10 +137,12 @@ async fn scan_handler(
     let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
 
     if !analyze_result.status.success() {
+        // FIX 5: Log stderr, return generic message
         let stderr = String::from_utf8_lossy(&analyze_result.stderr);
+        eprintln!("Analysis failed for {}: {}", repo_url, stderr);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Analysis failed: {}", stderr),
+            "Analysis failed".into(),
         ));
     }
 
@@ -112,10 +155,9 @@ async fn scan_handler(
 
 // ── Index scan types ──
 
+// FIX 2: Removed api_url from IndexScanRequest
 #[derive(Deserialize)]
-struct IndexScanRequest {
-    api_url: String,
-}
+struct IndexScanRequest {}
 
 #[derive(serde::Serialize)]
 struct RepoScanResult {
@@ -129,18 +171,20 @@ struct RepoScanResult {
 async fn index_scan_handler(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
-    Json(req): Json<IndexScanRequest>,
+    Json(_req): Json<IndexScanRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // Auth check
+    // Auth check (FIX 4: constant-time comparison)
     let auth = headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    if auth != format!("Bearer {}", state.auth_token) {
+    let expected = format!("Bearer {}", state.auth_token);
+    if auth.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() != 1 {
         return Err((StatusCode::UNAUTHORIZED, "Invalid token".into()));
     }
 
-    let api_url = req.api_url;
+    // FIX 2: Use api_url from state instead of request
+    let api_url = state.api_url.clone();
     let quarter = get_current_quarter();
 
     // 1. Fetch panel from CF API
@@ -326,12 +370,17 @@ async fn main() {
     let auth_token = std::env::var("AUTH_TOKEN").expect("AUTH_TOKEN required");
     let vibereport_bin =
         std::env::var("VIBEREPORT_BIN").unwrap_or_else(|_| "vibereport".into());
+    // FIX 2: Read API_URL from environment
+    let api_url = std::env::var("API_URL").unwrap_or_else(|_| {
+        "https://vibereport-api.clement-serizay.workers.dev".into()
+    });
 
     let state = Arc::new(AppState {
         user_semaphore: Semaphore::new(2),
         index_semaphore: Semaphore::new(3),
         auth_token,
         vibereport_bin,
+        api_url,
     });
 
     let app = Router::new()
@@ -339,7 +388,8 @@ async fn main() {
         .route("/index-scan", post(index_scan_handler))
         .with_state(state);
 
-    let addr = format!("0.0.0.0:{}", port);
+    // FIX 6: Bind to 127.0.0.1 (cloudflared runs on the same machine)
+    let addr = format!("127.0.0.1:{}", port);
     tracing::info!("VPS worker listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();

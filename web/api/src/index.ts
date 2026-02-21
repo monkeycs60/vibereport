@@ -3,6 +3,21 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 
+// ── Rate limiting (in-memory, per-isolate) ──
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (entry.count >= limit) return false;
+  entry.count++;
+  return true;
+}
+
 type Bindings = {
   DB: D1Database
   GITHUB_TOKEN?: string
@@ -15,13 +30,12 @@ const app = new Hono<{ Bindings: Bindings }>()
 // CORS for frontend
 app.use('/*', cors({
   origin: (origin) => {
-    if (!origin) return 'https://vibereport.dev'
+    if (!origin) return 'https://www.vibereport.dev'
     if (origin.startsWith('http://localhost:')) return origin
     if (origin === 'https://vibereport.dev' || origin === 'https://www.vibereport.dev') return origin
     if (origin.endsWith('.vibereport.pages.dev') || origin === 'https://vibereport.pages.dev') return origin
     if (origin.endsWith('.clement-serizay.workers.dev')) return origin
-    if (origin === 'https://vibereport.dev' || origin === 'https://www.vibereport.dev' || origin.endsWith('.vercel.app')) return origin
-    return 'https://vibereport.dev'
+    return 'https://www.vibereport.dev'
   },
   allowMethods: ['GET', 'POST', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
@@ -59,8 +73,9 @@ interface ScanResult {
 
 const CONCURRENCY = 20  // parallel page fetches per batch
 const MAX_PAGES = 999   // ~100k commits (Workers 1000 subrequest limit minus probe)
+const WEB_MAX_PAGES = 50 // ~5000 commits max per web-triggered scan
 
-async function analyzeGitHubRepo(owner: string, repo: string, token?: string): Promise<ScanResult> {
+async function analyzeGitHubRepo(owner: string, repo: string, token?: string, maxPages: number = MAX_PAGES): Promise<ScanResult> {
   const headers: Record<string, string> = {
     'Accept': 'application/vnd.github.v3+json',
     'User-Agent': 'vibereport/1.0',
@@ -108,8 +123,8 @@ async function analyzeGitHubRepo(owner: string, repo: string, token?: string): P
 
   processPage(firstPage)
 
-  // 3. Fetch remaining pages in parallel batches (capped at MAX_PAGES)
-  const pagesToFetch = Math.min(lastPage, MAX_PAGES)
+  // 3. Fetch remaining pages in parallel batches (capped at maxPages)
+  const pagesToFetch = Math.min(lastPage, maxPages)
   if (pagesToFetch > 1) {
     for (let batchStart = 2; batchStart <= pagesToFetch; batchStart += CONCURRENCY) {
       const batchEnd = Math.min(batchStart + CONCURRENCY - 1, pagesToFetch)
@@ -190,8 +205,16 @@ function pickRoast(points: number, aiRatio: number): string {
   return 'Handcrafted with mass-produced tears.'
 }
 
+// Valid chaos badges allowlist
+const VALID_BADGES = ['env-in-git', 'hardcoded-secrets', 'no-tests', 'dependency-hell', 'no-linting', 'no-ci', 'boomer-ai', 'node-modules-in-git', 'mega-commit', 'no-gitignore', 'no-readme', 'todo-flood', 'single-branch'];
+
 // ── POST /api/reports — Submit a new report ──
 app.post('/api/reports', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!checkRateLimit(ip, 10, 60000)) {
+    return c.json({ error: 'Rate limit exceeded, try again later' }, 429);
+  }
+
   let body: Record<string, unknown>
   try {
     body = await c.req.json()
@@ -206,11 +229,48 @@ app.post('/api/reports', async (c) => {
   if (typeof body.score_points !== 'number' || !Number.isInteger(body.score_points) || body.score_points < 0 || body.score_points > 200) {
     return c.json({ error: 'score_points must be an integer between 0 and 200' }, 400)
   }
-  if (typeof body.score_grade !== 'string' || body.score_grade.length > 5) {
-    return c.json({ error: 'Invalid score_grade' }, 400)
+
+  // FIX 4: Input validation on string fields
+  if (typeof body.github_username === 'string' && body.github_username.length > 255) {
+    return c.json({ error: 'github_username must be under 255 chars' }, 400)
   }
-  if (typeof body.roast !== 'string' || body.roast.length === 0 || body.roast.length > 500) {
-    return c.json({ error: 'roast must be a string under 500 chars' }, 400)
+  if (typeof body.repo_name === 'string' && body.repo_name.length > 255) {
+    return c.json({ error: 'repo_name must be under 255 chars' }, 400)
+  }
+  if (typeof body.ai_tool === 'string' && body.ai_tool.length > 100) {
+    return c.json({ error: 'ai_tool must be under 100 chars' }, 400)
+  }
+  if (typeof body.languages === 'string') {
+    if (body.languages.length > 10000) {
+      return c.json({ error: 'languages must be under 10000 chars' }, 400)
+    }
+    try { JSON.parse(body.languages) } catch {
+      return c.json({ error: 'languages must be valid JSON' }, 400)
+    }
+  }
+  if (typeof body.chaos_badges === 'string' && body.chaos_badges.length > 5000) {
+    return c.json({ error: 'chaos_badges must be under 5000 chars' }, 400)
+  }
+  if (typeof body.repo_fingerprint === 'string' && body.repo_fingerprint.length > 500) {
+    return c.json({ error: 'repo_fingerprint must be under 500 chars' }, 400)
+  }
+
+  // FIX 2: Server-side re-derive score_grade and roast (ignore client values)
+  const scoreGrade = gradeFromPoints(body.score_points as number)
+  const roast = pickRoast(body.score_points as number, body.ai_ratio as number)
+
+  // FIX 2: Validate chaos_badges against allowlist
+  let validatedBadges = '[]'
+  if (typeof body.chaos_badges === 'string') {
+    try {
+      const parsed = JSON.parse(body.chaos_badges)
+      if (Array.isArray(parsed)) {
+        const filtered = parsed.filter((b: unknown) => typeof b === 'string' && VALID_BADGES.includes(b))
+        validatedBadges = JSON.stringify(filtered)
+      }
+    } catch {
+      // Invalid JSON, use empty array
+    }
   }
 
   const db = c.env.DB
@@ -226,7 +286,6 @@ app.post('/api/reports', async (c) => {
   const totalCommits = typeof body.total_commits === 'number' ? body.total_commits : 0
   const aiCommits = typeof body.ai_commits === 'number' ? body.ai_commits : 0
   const vibeScore = typeof body.vibe_score === 'number' ? body.vibe_score : (body.score_points as number)
-  const chaosBadges = typeof body.chaos_badges === 'string' ? body.chaos_badges : '[]'
 
   if (fingerprint) {
     // Upsert: update existing report if fingerprint matches
@@ -251,9 +310,9 @@ app.post('/api/reports', async (c) => {
          updated_at = datetime('now')`
     ).bind(
       id, fingerprint, githubUsername, repoName,
-      body.ai_ratio, aiTool, body.score_points, body.score_grade, body.roast,
+      body.ai_ratio, aiTool, body.score_points, scoreGrade, roast,
       depsCount, hasTests, totalLines, languages,
-      totalCommits, aiCommits, vibeScore, chaosBadges,
+      totalCommits, aiCommits, vibeScore, validatedBadges,
     ).run()
   } else {
     // No fingerprint: plain insert (for backwards compatibility)
@@ -262,9 +321,9 @@ app.post('/api/reports', async (c) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cli')`
     ).bind(
       id, githubUsername, repoName,
-      body.ai_ratio, aiTool, body.score_points, body.score_grade, body.roast,
+      body.ai_ratio, aiTool, body.score_points, scoreGrade, roast,
       depsCount, hasTests, totalLines, languages,
-      totalCommits, aiCommits, vibeScore, chaosBadges,
+      totalCommits, aiCommits, vibeScore, validatedBadges,
     ).run()
   }
 
@@ -286,7 +345,7 @@ app.post('/api/reports', async (c) => {
 
   return c.json({
     id,
-    url: `https://vibereport.dev/r/${id}`,
+    url: `https://www.vibereport.dev/r/${id}`,
     rank,
     percentile: Math.round(percentile * 10) / 10,
   })
@@ -294,6 +353,11 @@ app.post('/api/reports', async (c) => {
 
 // ── POST /api/scan — Scan a public GitHub repo ──
 app.post('/api/scan', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!checkRateLimit(ip, 5, 60000)) {
+    return c.json({ error: 'Rate limit exceeded, try again later' }, 429);
+  }
+
   let body: Record<string, unknown>
   try {
     body = await c.req.json()
@@ -318,6 +382,35 @@ app.post('/api/scan', async (c) => {
   }
   const owner = parts[0]
   const repo = parts[1]
+
+  // FIX 9: Check for cached recent scan (within 10 minutes)
+  const db = c.env.DB
+  const cached = await db.prepare(
+    `SELECT sh.repo_fingerprint, sh.repo_name, sh.ai_ratio, sh.score_points, sh.scanned_at,
+            r.id, r.ai_tool, r.total_commits, r.ai_commits, r.score_grade, r.roast, r.chaos_badges, r.scan_source
+     FROM scan_history sh
+     LEFT JOIN reports r ON r.repo_fingerprint = sh.repo_fingerprint
+     WHERE sh.repo_name = ? AND sh.scanned_at > datetime('now', '-10 minutes')
+     ORDER BY sh.scanned_at DESC LIMIT 1`
+  ).bind(repo).first()
+  if (cached && cached.id) {
+    const chaosBadges = (() => { try { return JSON.parse(String(cached.chaos_badges || '[]')) } catch { return [] } })()
+    return c.json({
+      id: cached.id,
+      repo_name: `${owner}/${repo}`,
+      ai_ratio: cached.ai_ratio,
+      total_commits: cached.total_commits || 0,
+      ai_commits: cached.ai_commits || 0,
+      human_commits: (Number(cached.total_commits) || 0) - (Number(cached.ai_commits) || 0),
+      ai_tools: {},
+      score: cached.score_points,
+      grade: cached.score_grade,
+      roast: cached.roast,
+      chaos_badges: chaosBadges,
+      scan_source: cached.scan_source || 'cached',
+      url: `https://www.vibereport.dev/r/${cached.id}`,
+    })
+  }
 
   // ── Try VPS worker first (full git clone analysis with vibe detectors) ──
   const vpsUrl = c.env.VPS_SCAN_URL
@@ -379,7 +472,6 @@ app.post('/api/scan', async (c) => {
         const fingerprint = `vps:https://github.com/${owner}/${repo}`
 
         // Store in DB with scan_source = 'web_vps'
-        const db = c.env.DB
         const id = generateId()
 
         await db.prepare(
@@ -439,7 +531,7 @@ app.post('/api/scan', async (c) => {
           roast,
           chaos_badges: chaosBadges,
           scan_source: 'web_vps',
-          url: `https://vibereport.dev/r/${reportId}`,
+          url: `https://www.vibereport.dev/r/${reportId}`,
         })
       }
       // VPS returned non-ok status — fall through to GitHub API
@@ -452,8 +544,8 @@ app.post('/api/scan', async (c) => {
 
   // ── Fallback: GitHub API commit analysis ──
   try {
-    // Analyze ALL commits via parallel fetching (20 pages at a time)
-    const scan = await analyzeGitHubRepo(owner, repo, c.env.GITHUB_TOKEN)
+    // Analyze commits via parallel fetching (capped at WEB_MAX_PAGES for web scans)
+    const scan = await analyzeGitHubRepo(owner, repo, c.env.GITHUB_TOKEN, WEB_MAX_PAGES)
 
     const totalCommits = scan.totalScanned
     const aiCommits = scan.aiCommits
@@ -481,7 +573,6 @@ app.post('/api/scan', async (c) => {
       : null
 
     // Save to database (upsert if fingerprint exists)
-    const db = c.env.DB
     const id = generateId()
     const repoName = repo
     const githubUsername = owner
@@ -550,21 +641,27 @@ app.post('/api/scan', async (c) => {
       roast,
       chaos_badges: chaosBadges,
       scan_source: 'web_github',
-      url: `https://vibereport.dev/r/${reportId}`,
+      url: `https://www.vibereport.dev/r/${reportId}`,
     })
   } catch (err: any) {
     if (err.message?.includes('404')) {
       return c.json({ error: `Repository ${owner}/${repo} not found or is private` }, 404)
     }
-    return c.json({ error: `Failed to scan: ${err.message}` }, 500)
+    console.error('Scan failed:', err.message)
+    return c.json({ error: 'Scan failed, please try again later' }, 500)
   }
 })
 
 // ── GET /api/reports/list — List all reports, newest first ──
 app.get('/api/reports/list', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!checkRateLimit(ip, 60, 60000)) {
+    return c.json({ error: 'Rate limit exceeded, try again later' }, 429);
+  }
+
   const db = c.env.DB
-  const page = parseInt(c.req.query('page') || '1')
-  const limit = Math.min(parseInt(c.req.query('limit') || '20'), 100)
+  const page = Math.max(1, parseInt(c.req.query('page') || '1') || 1)
+  const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') || '20') || 20), 100)
   const offset = (page - 1) * limit
 
   const result = await db.prepare(
@@ -588,6 +685,11 @@ app.get('/api/reports/list', async (c) => {
 
 // ── GET /api/reports/:id — Get a single report ──
 app.get('/api/reports/:id', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!checkRateLimit(ip, 60, 60000)) {
+    return c.json({ error: 'Rate limit exceeded, try again later' }, 429);
+  }
+
   const row = await c.env.DB.prepare(
     `SELECT * FROM reports WHERE id = ?`
   ).bind(c.req.param('id')).first()
@@ -620,9 +722,14 @@ app.get('/api/reports/:id', async (c) => {
 
 // ── GET /api/leaderboard — Top scores, paginated ──
 app.get('/api/leaderboard', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!checkRateLimit(ip, 60, 60000)) {
+    return c.json({ error: 'Rate limit exceeded, try again later' }, 429);
+  }
+
   const db = c.env.DB
-  const page = parseInt(c.req.query('page') || '1')
-  const limit = Math.min(parseInt(c.req.query('limit') || '20'), 100)
+  const page = Math.max(1, parseInt(c.req.query('page') || '1') || 1)
+  const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') || '20') || 20), 100)
   const offset = (page - 1) * limit
 
   // Sort param
@@ -660,6 +767,11 @@ app.get('/api/leaderboard', async (c) => {
 
 // ── GET /api/stats — Aggregate stats ──
 app.get('/api/stats', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!checkRateLimit(ip, 60, 60000)) {
+    return c.json({ error: 'Rate limit exceeded, try again later' }, 429);
+  }
+
   const result = await c.env.DB.prepare(
     `SELECT
        COUNT(*) as total_reports,
@@ -676,6 +788,11 @@ app.get('/api/stats', async (c) => {
 
 // ── GET /api/trends — Monthly scan trends ──
 app.get('/api/trends', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!checkRateLimit(ip, 60, 60000)) {
+    return c.json({ error: 'Rate limit exceeded, try again later' }, 429);
+  }
+
   const db = c.env.DB
 
   const period = c.req.query('period') || '1y'
@@ -710,6 +827,11 @@ app.get('/api/trends', async (c) => {
 
 // ── GET /api/badge/:id.svg — Dynamic SVG badge ──
 app.get('/api/badge/:id.svg', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!checkRateLimit(ip, 60, 60000)) {
+    return c.json({ error: 'Rate limit exceeded, try again later' }, 429);
+  }
+
   const id = (c.req.param('id') ?? '').replace('.svg', '')
 
   const report = await c.env.DB.prepare(
@@ -745,6 +867,11 @@ app.get('/api/badge/:id.svg', async (c) => {
 
 // ── GET /api/index-panel — Repo list for current quarter ──
 app.get('/api/index-panel', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!checkRateLimit(ip, 60, 60000)) {
+    return c.json({ error: 'Rate limit exceeded, try again later' }, 429);
+  }
+
   const quarter = c.req.query('quarter') || getCurrentQuarter()
   const result = await c.env.DB.prepare(
     `SELECT repo_slug, panel_source, stars FROM index_panel WHERE quarter = ? ORDER BY stars DESC`
@@ -769,6 +896,11 @@ app.post('/api/index-results', async (c) => {
 
   const db = c.env.DB
   const scanDate = body.scan_date
+
+  // FIX 6: Validate scan_date format
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(scanDate)) {
+    return c.json({ error: 'scan_date must match YYYY-MM-DD format' }, 400)
+  }
 
   // Insert individual scan results
   let totalRepos = 0
@@ -807,6 +939,11 @@ app.post('/api/index-results', async (c) => {
 
 // ── GET /api/index-latest — Latest index snapshot for frontend ──
 app.get('/api/index-latest', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!checkRateLimit(ip, 60, 60000)) {
+    return c.json({ error: 'Rate limit exceeded, try again later' }, 429);
+  }
+
   const row = await c.env.DB.prepare(
     `SELECT * FROM index_snapshots ORDER BY snapshot_date DESC LIMIT 1`
   ).first()
@@ -818,6 +955,11 @@ app.get('/api/index-latest', async (c) => {
 
 // ── GET /api/index-trend — Index snapshots over time ──
 app.get('/api/index-trend', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || 'unknown';
+  if (!checkRateLimit(ip, 60, 60000)) {
+    return c.json({ error: 'Rate limit exceeded, try again later' }, 429);
+  }
+
   const result = await c.env.DB.prepare(
     `SELECT snapshot_date, total_repos, total_commits, total_ai_commits, ai_percent
      FROM index_snapshots
@@ -842,7 +984,7 @@ export default {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${env.VPS_AUTH_TOKEN}`,
         },
-        body: JSON.stringify({ api_url: 'https://vibereport-api.clement-serizay.workers.dev' }),
+        body: JSON.stringify({}),
       })
     } catch (err: any) {
       console.error('Cron trigger failed:', err.message)

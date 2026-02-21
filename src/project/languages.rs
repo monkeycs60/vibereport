@@ -8,6 +8,20 @@ pub struct LanguageStats {
     pub total_lines: usize,
 }
 
+/// Check if a path is a regular file (not a symlink) to prevent symlink attacks.
+fn is_regular_file(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_file())
+        .unwrap_or(false)
+}
+
+/// Check if a path is a regular directory (not a symlink) to prevent symlink attacks.
+fn is_regular_dir(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_dir())
+        .unwrap_or(false)
+}
+
 /// Count lines of code by language by walking the source tree.
 pub fn count_languages(path: &Path) -> LanguageStats {
     let mut stats = LanguageStats::default();
@@ -39,11 +53,11 @@ fn walk_dir(dir: &Path, stats: &mut LanguageStats) {
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
 
-        if path.is_dir() {
+        if is_regular_dir(&path) {
             if !skip_dirs.contains(&name.as_str()) && !name.starts_with('.') {
                 walk_dir(&path, stats);
             }
-        } else if path.is_file() {
+        } else if is_regular_file(&path) {
             if let Some(lang) = detect_language(&name) {
                 let lines = count_lines(&path);
                 *stats.languages.entry(lang).or_insert(0) += lines;
@@ -77,7 +91,17 @@ fn detect_language(filename: &str) -> Option<String> {
     }
 }
 
+/// Maximum file size to read (1 MB). Files larger than this are skipped
+/// to prevent out-of-memory conditions on huge generated/vendored files.
+const MAX_FILE_SIZE: u64 = 1_048_576;
+
 fn count_lines(path: &Path) -> usize {
+    // Skip files larger than 1 MB to avoid OOM
+    if let Ok(meta) = std::fs::metadata(path) {
+        if meta.len() > MAX_FILE_SIZE {
+            return 0;
+        }
+    }
     std::fs::read_to_string(path)
         .map(|content| content.lines().count())
         .unwrap_or(0)

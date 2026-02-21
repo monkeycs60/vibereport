@@ -286,6 +286,7 @@ const apiUrl = getApiUrl();
       // Languages
       const langsEl = document.getElementById('result-langs');
       langsEl.innerHTML = '';
+      const hexColorRe = /^#[0-9a-fA-F]{6}$/;
       if (data.languages) {
         Object.entries(data.languages)
           .sort(([, a], [, b]) => b - a)
@@ -293,8 +294,14 @@ const apiUrl = getApiUrl();
           .forEach(([lang, pct]) => {
             const chip = document.createElement('span');
             chip.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-[#1a1b26]/80 text-[#565f89] border border-[#3b4261]/30';
-            const color = langColors[lang] || '#565f89';
-            chip.innerHTML = `<span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${color}"></span>${lang} ${Math.round(pct)}%`;
+            const rawColor = langColors[lang] || '#565f89';
+            const color = hexColorRe.test(rawColor) ? rawColor : '#565f89';
+            const dot = document.createElement('span');
+            dot.className = 'w-2 h-2 rounded-full flex-shrink-0';
+            dot.style.background = color;
+            chip.appendChild(dot);
+            const label = document.createTextNode(lang + ' ' + Math.round(pct) + '%');
+            chip.appendChild(label);
             langsEl.appendChild(chip);
           });
       }

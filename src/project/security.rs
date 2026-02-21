@@ -1,5 +1,12 @@
 use std::path::Path;
 
+/// Check if a path is a regular file (not a symlink) to prevent symlink attacks.
+fn is_regular_file(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_file())
+        .unwrap_or(false)
+}
+
 #[derive(Debug, Default)]
 pub struct SecurityInfo {
     pub env_in_git: bool,
@@ -44,7 +51,7 @@ pub fn check_security(path: &Path) -> SecurityInfo {
     // Check all .env* patterns
     for pattern in ENV_PATTERNS {
         let env_path = path.join(pattern);
-        if env_path.exists() && !is_ignored_by(&gitignore_content, pattern) {
+        if is_regular_file(&env_path) && !is_ignored_by(&gitignore_content, pattern) {
             info.env_files_count += 1;
         }
     }
@@ -98,6 +105,9 @@ fn count_secret_hints(path: &Path) -> usize {
     let mut count = 0;
     for candidate in &candidates {
         let file_path = path.join(candidate);
+        if !is_regular_file(&file_path) {
+            continue;
+        }
         if let Ok(content) = std::fs::read_to_string(&file_path) {
             for pattern in SECRET_PATTERNS {
                 count += content.matches(pattern).count();
