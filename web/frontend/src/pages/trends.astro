@@ -1,80 +1,72 @@
 ---
 import Base from '../layouts/Base.astro';
 import TrendChart from '../components/TrendChart.astro';
-import { fetchTrends } from '../lib/api';
+import { fetchTrends, fetchIndexTrend } from '../lib/api';
 
-const url = new URL(Astro.request.url);
-const period = url.searchParams.get('period') || '1y';
+// Fetch index trend data (primary)
+let indexTrend = { snapshots: [] as Array<{ snapshot_date: string; total_repos: number; total_commits: number; total_ai_commits: number; ai_percent: number }> };
+try { indexTrend = await fetchIndexTrend(); } catch {}
 
-let trends = { period, trends: [] as Array<{ month: string; avg_ai_ratio: number; total_scans: number; avg_score: number }> };
+const latestIndex = indexTrend.snapshots.length > 0 ? indexTrend.snapshots[indexTrend.snapshots.length - 1] : null;
 
-try {
-  trends = await fetchTrends(period);
-} catch {}
+// Fetch community trend data (secondary)
+let trends = { period: '1y', trends: [] as Array<{ month: string; avg_ai_ratio: number; total_scans: number; avg_score: number; total_commits: number; ai_commits: number }> };
+try { trends = await fetchTrends('all'); } catch {}
 
-const totalScans = trends.trends.reduce((sum, t) => sum + t.total_scans, 0);
-const latestMonth = trends.trends.length > 0 ? trends.trends[trends.trends.length - 1] : null;
-
-const periods = [
-  { value: '6m', label: '6 months' },
-  { value: '1y', label: '1 year' },
-  { value: 'all', label: 'All time' },
-];
+// Map community trends to snapshot format for TrendChart
+const communitySnapshots = trends.trends.map(t => ({
+  snapshot_date: t.month,
+  total_commits: t.total_commits || 0,
+  total_ai_commits: t.ai_commits || 0,
+  ai_percent: t.avg_ai_ratio * 100,
+}));
 ---
 
-<Base title="Trends - vibereport" description="AI adoption trends across all vibereport scans.">
+<Base title="Trends - vibereport" description="AI adoption trends across GitHub's top repos.">
   <section class="py-16">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-10">
         <h1 class="text-3xl sm:text-4xl font-bold text-tokyo-text mb-3">
-          AI Adoption Trends
+          GitHub AI Index &mdash; Trend
         </h1>
         <p class="text-sm text-tokyo-dimmed">
-          How AI-generated code is evolving across all scanned repos
+          Daily AI adoption tracking across top GitHub repositories
         </p>
       </div>
 
-      <!-- Period selector -->
-      <div class="flex items-center justify-center gap-2 mb-8">
-        {periods.map((p) => (
-          <a
-            href={`/trends?period=${p.value}`}
-            class:list={[
-              'px-4 py-1.5 rounded-lg text-sm transition-all border',
-              period === p.value
-                ? 'bg-tokyo-cyan/20 border-tokyo-cyan/40 text-tokyo-cyan'
-                : 'bg-tokyo-surface/30 border-tokyo-border/30 text-tokyo-dimmed hover:text-tokyo-text hover:border-tokyo-border/60',
-            ]}
-          >
-            {p.label}
-          </a>
-        ))}
-      </div>
+      <!-- Index stacked area chart -->
+      <TrendChart snapshots={indexTrend.snapshots} />
 
-      <!-- Chart -->
-      <TrendChart trends={trends.trends} />
-
-      <!-- Key stats -->
+      <!-- Key stats (index data) -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-10">
         <div class="text-center p-5 rounded-xl bg-tokyo-surface/30 border border-tokyo-border/20">
           <div class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-tokyo-cyan to-tokyo-green bg-clip-text text-transparent">
-            {totalScans.toLocaleString()}
+            {latestIndex ? latestIndex.total_repos.toLocaleString() : '844'}
           </div>
-          <p class="text-xs text-tokyo-dimmed mt-1 uppercase tracking-wider">Total scans</p>
+          <p class="text-xs text-tokyo-dimmed mt-1 uppercase tracking-wider">Repos tracked</p>
         </div>
         <div class="text-center p-5 rounded-xl bg-tokyo-surface/30 border border-tokyo-border/20">
           <div class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-tokyo-cyan to-tokyo-green bg-clip-text text-transparent">
-            {latestMonth ? `${Math.round(latestMonth.avg_ai_ratio * 100)}%` : '--'}
+            {latestIndex ? `${latestIndex.ai_percent.toFixed(1)}%` : '--'}
           </div>
-          <p class="text-xs text-tokyo-dimmed mt-1 uppercase tracking-wider">Latest month AI %</p>
+          <p class="text-xs text-tokyo-dimmed mt-1 uppercase tracking-wider">Current AI %</p>
         </div>
         <div class="text-center p-5 rounded-xl bg-tokyo-surface/30 border border-tokyo-border/20">
           <div class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-tokyo-cyan to-tokyo-green bg-clip-text text-transparent">
-            {trends.trends.length}
+            {indexTrend.snapshots.length}
           </div>
-          <p class="text-xs text-tokyo-dimmed mt-1 uppercase tracking-wider">Months tracked</p>
+          <p class="text-xs text-tokyo-dimmed mt-1 uppercase tracking-wider">Days tracked</p>
         </div>
       </div>
+
+      <!-- Community section -->
+      <section class="py-12 border-t border-tokyo-border/20 mt-12">
+        <h2 class="text-xl font-bold text-tokyo-text mb-2">Community</h2>
+        <p class="text-sm text-tokyo-dimmed mb-6">
+          Stats from repos scanned by users via the CLI or web scanner.
+        </p>
+        <TrendChart snapshots={communitySnapshots} />
+      </section>
     </div>
   </section>
 </Base>
