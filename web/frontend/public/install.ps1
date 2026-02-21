@@ -2,7 +2,7 @@
 # Usage: irm https://vibereport.dev/install.ps1 | iex
 $ErrorActionPreference = "Stop"
 
-$repo = "vibereport/vibereport"
+$repo = "monkeycs60/vibereport"
 $binary = "vibereport"
 $target = "x86_64-pc-windows-msvc"
 

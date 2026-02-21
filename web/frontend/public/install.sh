@@ -3,7 +3,7 @@
 # Usage: curl -fsSL https://vibereport.dev/install.sh | sh
 set -e
 
-REPO="vibereport/vibereport"
+REPO="monkeycs60/vibereport"
 BINARY="vibereport"
 
 # Detect OS
