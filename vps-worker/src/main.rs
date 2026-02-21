@@ -176,56 +176,70 @@ async fn index_scan_handler(
         ));
     }
 
+    let repo_count = repos.len();
     tracing::info!(
         "Index scan starting: {} repos for {}",
-        repos.len(),
+        repo_count,
         quarter
     );
 
-    // 2. Scan repos with index semaphore (3 concurrent via buffer_unordered + semaphore)
-    let results: Vec<RepoScanResult> = stream::iter(repos)
-        .map(|slug| {
-            let sem = &state.index_semaphore;
-            let bin = state.vibereport_bin.clone();
-            async move {
-                let _permit = sem.acquire().await.ok()?;
-                scan_single_repo(&slug, &bin).await
+    // Fire-and-forget: spawn background task, return immediately
+    // (Cloudflare Tunnel has ~100s timeout, scan takes ~30min)
+    let auth_token = state.auth_token.clone();
+    let vibereport_bin = state.vibereport_bin.clone();
+    let state_clone = Arc::clone(&state);
+
+    tokio::spawn(async move {
+        let results: Vec<RepoScanResult> = stream::iter(repos)
+            .map(|slug| {
+                let sem = &state_clone.index_semaphore;
+                let bin = vibereport_bin.clone();
+                async move {
+                    let _permit = sem.acquire().await.ok()?;
+                    scan_single_repo(&slug, &bin).await
+                }
+            })
+            .buffer_unordered(3)
+            .filter_map(|r| async { r })
+            .collect()
+            .await;
+
+        let scan_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        tracing::info!(
+            "Index scan complete: {}/{} repos scanned, posting results",
+            results.len(),
+            repo_count
+        );
+
+        // Post results back to CF API
+        let client = reqwest::Client::new();
+        let post_body = serde_json::json!({
+            "scan_date": scan_date,
+            "results": results,
+        });
+
+        match client
+            .post(format!("{}/api/index-results", api_url))
+            .header("Authorization", format!("Bearer {}", auth_token))
+            .json(&post_body)
+            .send()
+            .await
+        {
+            Ok(res) => {
+                let status = res.status();
+                let body: serde_json::Value = res.json().await.unwrap_or_default();
+                tracing::info!("Index results posted: status={}, body={}", status, body);
             }
-        })
-        .buffer_unordered(3)
-        .filter_map(|r| async { r })
-        .collect()
-        .await;
-
-    let scan_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
-
-    // 3. Post results back to CF API
-    let post_body = serde_json::json!({
-        "scan_date": scan_date,
-        "results": results,
+            Err(e) => {
+                tracing::error!("Failed to post index results: {}", e);
+            }
+        }
     });
 
-    let post_res = client
-        .post(format!("{}/api/index-results", api_url))
-        .header("Authorization", format!("Bearer {}", state.auth_token))
-        .json(&post_body)
-        .send()
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to post results: {}", e),
-            )
-        })?;
-
-    let response: serde_json::Value = post_res.json().await.unwrap_or_default();
-
-    tracing::info!("Index scan complete: {} repos scanned", results.len());
-
     Ok(Json(serde_json::json!({
-        "scanned": results.len(),
-        "scan_date": scan_date,
-        "api_response": response,
+        "status": "started",
+        "repos": repo_count,
+        "quarter": quarter,
     })))
 }
 
