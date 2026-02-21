@@ -91,14 +91,26 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 ## GitHub AI Index
 - 1000 repos selected per quarter (600 by stars + 600 by activity, deduped, cut to 1000)
 - Panel stored in `index_panel` table, fixed per quarter for trend comparability
-- Panel generation: `scripts/generate-panel.sh` (uses GitHub Search API, ~12 requests)
+- Panel generation: `scripts/generate-panel.sh` (uses GitHub Search API, ~12 requests) — stars query filters `pushed:>2025-06-01` to exclude dead repos
+- Current results: 891/1000 repos active, ~628K commits, ~15K AI, ~2.39% AI
 - Daily cron at 3h UTC: CF Worker triggers VPS → VPS scans all panel repos → POSTs results back
 - Results stored in `index_scans` (per-repo) and `index_snapshots` (daily aggregates)
 - D1 tables: `index_panel`, `index_scans`, `index_snapshots`
 - API endpoints: GET /api/index-panel, POST /api/index-results, GET /api/index-latest, GET /api/index-trend
-- Frontend: BattleChart toggle between "GitHub Index" and "Community" views
+- Frontend: BattleChart shows index-only (no toggle), TrendChart shows stacked area
 - Index and Community data pools are completely independent — no cross-contamination
 - Design doc: docs/plans/2026-02-21-github-ai-index-design.md
+
+## Frontend
+- Homepage: 5 sections — hero, battle, trend, leaderboard, CTA
+- BattleChart: index-only (no toggle), 4 props: aiCommits, humanCommits, totalRepos, snapshotDate
+- TrendChart: stacked area chart with dynamic Y-axis, snapshots prop, auto-scales to data
+- Navigation: 4 links — scan, leaderboard, trends, github
+- /reports page deleted, merged into /leaderboard
+- Leaderboard: configurable sort (AI% or Vibe Score), Score column added
+- Scan page: AI% as hero metric, Vibe Score secondary
+- Report page: AI% as hero, Vibe Score + Grade secondary
+- Trends page: index stacked area (primary) + community section (secondary)
 
 ## Key Design Decisions
 - Share by default (--no-share to opt out) for maximum leaderboard participation

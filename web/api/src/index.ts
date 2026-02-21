@@ -598,6 +598,7 @@ app.get('/api/reports/:id', async (c) => {
 
   // Map DB columns to frontend-expected field names
   const languages = (() => { try { return JSON.parse(String(row.languages || '{}')) } catch { return {} } })()
+  const chaosBadges = (() => { try { return JSON.parse(String(row.chaos_badges || '[]')) } catch { return [] } })()
   return c.json({
     id: row.id,
     repo_name: row.repo_name ? `${row.github_username || ''}/${row.repo_name}` : row.github_username,
@@ -609,6 +610,9 @@ app.get('/api/reports/:id', async (c) => {
     ai_commits: row.ai_commits || 0,
     total_lines: row.total_lines,
     has_tests: Boolean(row.has_tests),
+    deps_count: row.deps_count || 0,
+    chaos_badges: chaosBadges,
+    scan_source: row.scan_source || 'cli',
     languages,
     created_at: row.created_at,
   })

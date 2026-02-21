@@ -1,0 +1,300 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="Docs - vibereport" description="Install vibereport, learn the CLI, understand scoring, and know exactly what gets scanned.">
+  <section class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
+    <!-- Header -->
+    <div class="text-center mb-14">
+      <h1 class="text-3xl sm:text-4xl font-bold text-tokyo-text mb-3">
+        Documentation
+      </h1>
+      <p class="text-sm text-tokyo-dimmed">
+        Install, scan, and understand your vibe score.
+      </p>
+    </div>
+
+    <!-- Table of contents -->
+    <nav class="mb-14 p-5 rounded-xl bg-tokyo-surface/40 border border-tokyo-border/30">
+      <p class="text-xs text-tokyo-dimmed uppercase tracking-wider mb-3">On this page</p>
+      <ul class="space-y-1.5 text-sm">
+        <li><a href="#install" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">Install</a></li>
+        <li><a href="#usage" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">Usage</a></li>
+        <li><a href="#what-gets-scanned" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">What gets scanned</a></li>
+        <li><a href="#detected-ai-tools" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">Detected AI tools</a></li>
+        <li><a href="#scoring" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">Scoring</a></li>
+        <li><a href="#output-formats" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">Output formats</a></li>
+      </ul>
+    </nav>
+
+    <!-- Install -->
+    <div id="install" class="mb-14 scroll-mt-20">
+      <h2 class="text-xl font-bold text-tokyo-text mb-4 flex items-center gap-2">
+        <span class="text-tokyo-cyan">#</span> Install
+      </h2>
+      <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-2 border-b border-tokyo-border/20">
+          <span class="text-xs text-tokyo-dimmed">shell</span>
+        </div>
+        <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>cargo install vibereport</code></pre>
+      </div>
+      <p class="text-sm text-tokyo-dimmed mt-3">
+        Requires <a href="https://rustup.rs" target="_blank" rel="noopener noreferrer" class="text-tokyo-cyan hover:underline">Rust</a> installed on your system.
+      </p>
+    </div>
+
+    <!-- Usage -->
+    <div id="usage" class="mb-14 scroll-mt-20">
+      <h2 class="text-xl font-bold text-tokyo-text mb-4 flex items-center gap-2">
+        <span class="text-tokyo-cyan">#</span> Usage
+      </h2>
+      <p class="text-sm text-tokyo-dimmed mb-5">
+        Four ways to scan a repo:
+      </p>
+
+      <!-- Mode 1: Single repo -->
+      <div class="mb-4 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-tokyo-border/20">
+          <p class="text-xs text-tokyo-text font-medium">Scan current or specific repo</p>
+        </div>
+        <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport
+vibereport /path/to/repo</code></pre>
+      </div>
+
+      <!-- Mode 2: Multi-repo -->
+      <div class="mb-4 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-tokyo-border/20">
+          <p class="text-xs text-tokyo-text font-medium">Scan all git repos recursively</p>
+        </div>
+        <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport --scan-all ~/projects</code></pre>
+      </div>
+
+      <!-- Mode 3: Remote -->
+      <div class="mb-4 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-tokyo-border/20">
+          <p class="text-xs text-tokyo-text font-medium">Scan a remote GitHub repo</p>
+        </div>
+        <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport github:user/repo</code></pre>
+      </div>
+
+      <!-- Mode 4: Web -->
+      <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-tokyo-border/20">
+          <p class="text-xs text-tokyo-text font-medium">Scan online</p>
+        </div>
+        <div class="p-4 text-sm">
+          <a href="/scan" class="text-tokyo-cyan hover:underline">vibereport.dev/scan</a>
+          <span class="text-tokyo-dimmed"> &mdash; no install required</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- What gets scanned -->
+    <div id="what-gets-scanned" class="mb-14 scroll-mt-20">
+      <h2 class="text-xl font-bold text-tokyo-text mb-4 flex items-center gap-2">
+        <span class="text-tokyo-cyan">#</span> What gets scanned
+      </h2>
+      <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 p-5 space-y-3 text-sm">
+        <div class="flex items-start gap-3">
+          <span class="text-tokyo-green mt-0.5 flex-shrink-0">+</span>
+          <p class="text-tokyo-text">
+            <span class="font-medium">Commit messages only</span>
+            <span class="text-tokyo-dimmed"> &mdash; Co-Authored-By trailers, email patterns, and message prefixes</span>
+          </p>
+        </div>
+        <div class="flex items-start gap-3">
+          <span class="text-tokyo-red mt-0.5 flex-shrink-0">-</span>
+          <p class="text-tokyo-dimmed">NO source code is read or uploaded</p>
+        </div>
+        <div class="flex items-start gap-3">
+          <span class="text-tokyo-red mt-0.5 flex-shrink-0">-</span>
+          <p class="text-tokyo-dimmed">NO secrets, credentials, or private data are accessed</p>
+        </div>
+      </div>
+
+      <div class="mt-5 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 p-5 space-y-3 text-sm">
+        <p class="text-tokyo-text">
+          The scan result (commit stats + score) is <span class="font-medium text-tokyo-yellow">shared to the leaderboard by default</span>.
+        </p>
+        <div class="rounded-lg bg-tokyo-bg/60 border border-tokyo-border/20 p-3">
+          <p class="text-xs text-tokyo-dimmed mb-1.5">Keep results private:</p>
+          <code class="text-sm text-tokyo-green">vibereport --no-share</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detected AI Tools -->
+    <div id="detected-ai-tools" class="mb-14 scroll-mt-20">
+      <h2 class="text-xl font-bold text-tokyo-text mb-4 flex items-center gap-2">
+        <span class="text-tokyo-cyan">#</span> Detected AI tools
+      </h2>
+      <p class="text-sm text-tokyo-dimmed mb-5">
+        Detection is based on commit message signatures (Co-Authored-By trailers, email patterns, message prefixes).
+      </p>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-5">
+        {[
+          { name: 'Claude Code', hex: '#7aa2f7' },
+          { name: 'Cursor', hex: '#9ece6a' },
+          { name: 'Aider', hex: '#e0af68' },
+          { name: 'Codex CLI', hex: '#f7768e' },
+          { name: 'GitHub Copilot', hex: '#565f89' },
+          { name: 'Gemini CLI', hex: '#7aa2f7' },
+        ].map((tool) => (
+          <div class="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-tokyo-surface/60 border border-tokyo-border/30 text-sm">
+            <span class="w-2 h-2 rounded-full flex-shrink-0" style={`background:${tool.hex}`}></span>
+            <span class="text-tokyo-text">{tool.name}</span>
+          </div>
+        ))}
+      </div>
+
+      <div class="rounded-xl bg-tokyo-bg/60 border border-tokyo-border/20 p-4 text-sm">
+        <p class="text-tokyo-dimmed">
+          Tools that don't sign commits are <span class="text-tokyo-text">not detectable</span>: Windsurf, Copilot inline autocomplete, Kilo Code.
+        </p>
+      </div>
+    </div>
+
+    <!-- Scoring -->
+    <div id="scoring" class="mb-14 scroll-mt-20">
+      <h2 class="text-xl font-bold text-tokyo-text mb-4 flex items-center gap-2">
+        <span class="text-tokyo-cyan">#</span> Scoring
+      </h2>
+
+      <!-- AI% -->
+      <div class="mb-5 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 p-5">
+        <h3 class="text-sm font-bold text-tokyo-text mb-2">AI%</h3>
+        <div class="rounded-lg bg-tokyo-bg/60 border border-tokyo-border/20 p-3 mb-2">
+          <code class="text-sm text-tokyo-green">ai_commits / total_commits &times; 100</code>
+        </div>
+        <p class="text-xs text-tokyo-dimmed">Factual metric. How many commits have AI tool signatures.</p>
+      </div>
+
+      <!-- Vibe Score -->
+      <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 p-5">
+        <h3 class="text-sm font-bold text-tokyo-text mb-3">Vibe Score</h3>
+        <p class="text-xs text-tokyo-dimmed mb-4">Composite judgment score. Higher = more vibes detected.</p>
+
+        <div class="space-y-0">
+          <!-- Category: Core -->
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-text">AI ratio</span>
+            <span class="text-tokyo-dimmed">0&ndash;60 pts</span>
+          </div>
+
+          <!-- Category: Testing -->
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-text">No tests</span>
+            <span class="text-tokyo-dimmed">+20</span>
+          </div>
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-text">Few tests (&lt;3)</span>
+            <span class="text-tokyo-dimmed">+10</span>
+          </div>
+
+          <!-- Category: Security -->
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-red">.env in git</span>
+            <span class="text-tokyo-dimmed">+20/file <span class="text-xs">(max 60)</span></span>
+          </div>
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-red">Hardcoded secrets</span>
+            <span class="text-tokyo-dimmed">+20/each <span class="text-xs">(max 60)</span></span>
+          </div>
+
+          <!-- Category: Quality -->
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-text">No linting</span>
+            <span class="text-tokyo-dimmed">+10</span>
+          </div>
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-text">No CI/CD</span>
+            <span class="text-tokyo-dimmed">+10</span>
+          </div>
+
+          <!-- Category: Patterns -->
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-[#bb9af7]">Boomer AI</span>
+            <span class="text-tokyo-dimmed">+10</span>
+          </div>
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-text">node_modules in git</span>
+            <span class="text-tokyo-dimmed">+15</span>
+          </div>
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-text">Mega commit</span>
+            <span class="text-tokyo-dimmed">+10</span>
+          </div>
+
+          <!-- Category: Minor -->
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-text">No .gitignore</span>
+            <span class="text-tokyo-dimmed">+10</span>
+          </div>
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-text">No README</span>
+            <span class="text-tokyo-dimmed">+10</span>
+          </div>
+          <div class="border-b border-tokyo-border/20 py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-text">TODO flood (&gt;20)</span>
+            <span class="text-tokyo-dimmed">+5</span>
+          </div>
+          <div class="py-2.5 flex items-center justify-between text-sm">
+            <span class="text-tokyo-text">Single branch</span>
+            <span class="text-tokyo-dimmed">+5</span>
+          </div>
+        </div>
+
+        <div class="mt-4 rounded-lg bg-tokyo-bg/60 border border-tokyo-border/20 p-3">
+          <p class="text-xs text-tokyo-dimmed">
+            Score is <span class="text-tokyo-yellow font-medium">uncapped</span> &mdash; repos with enough chaos can exceed 100 for an <span class="text-tokyo-green font-bold">S+</span> grade.
+          </p>
+        </div>
+
+        <!-- Boomer AI explanation -->
+        <div class="mt-3 rounded-lg bg-tokyo-bg/60 border border-tokyo-border/20 p-3">
+          <p class="text-xs text-tokyo-dimmed">
+            <span class="text-[#bb9af7] font-medium">Boomer AI</span>: AI% &gt; 0 but no config files found (<code class="text-tokyo-green">.claude/</code>, <code class="text-tokyo-green">.cursorrules</code>, <code class="text-tokyo-green">AGENTS.md</code>, etc.)
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Output formats -->
+    <div id="output-formats" class="mb-14 scroll-mt-20">
+      <h2 class="text-xl font-bold text-tokyo-text mb-4 flex items-center gap-2">
+        <span class="text-tokyo-cyan">#</span> Output formats
+      </h2>
+
+      <div class="space-y-3">
+        <!-- Terminal -->
+        <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+          <div class="px-4 py-2.5 border-b border-tokyo-border/20 flex items-center justify-between">
+            <p class="text-xs text-tokyo-text font-medium">Terminal (default)</p>
+            <span class="text-xs text-tokyo-dimmed">ASCII art + colors</span>
+          </div>
+          <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport</code></pre>
+        </div>
+
+        <!-- JSON -->
+        <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+          <div class="px-4 py-2.5 border-b border-tokyo-border/20 flex items-center justify-between">
+            <p class="text-xs text-tokyo-text font-medium">JSON</p>
+            <span class="text-xs text-tokyo-dimmed">Machine-readable</span>
+          </div>
+          <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport --json</code></pre>
+        </div>
+
+        <!-- SVG -->
+        <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+          <div class="px-4 py-2.5 border-b border-tokyo-border/20 flex items-center justify-between">
+            <p class="text-xs text-tokyo-text font-medium">SVG</p>
+            <span class="text-xs text-tokyo-dimmed">Shareable image</span>
+          </div>
+          <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport --svg</code></pre>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</Base>

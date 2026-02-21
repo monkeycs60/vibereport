@@ -83,6 +83,12 @@ const apiUrl = getApiUrl();
           </div>
         </div>
 
+        <!-- Score Breakdown -->
+        <div id="rpt-breakdown-section" class="hidden">
+          <p class="text-xs text-tokyo-dimmed uppercase tracking-wider mb-3">Score Breakdown</p>
+          <div id="rpt-breakdown" class="flex flex-wrap gap-2"></div>
+        </div>
+
         <!-- Roast -->
         <div class="p-4 rounded-xl bg-tokyo-bg/60 border border-tokyo-border/20">
           <p class="text-xs text-tokyo-dimmed uppercase tracking-wider mb-2">Roast</p>
@@ -212,6 +218,107 @@ const apiUrl = getApiUrl();
             <span class="text-xs text-[#565f89] w-10 text-right tabular-nums">${Math.round(pct)}%</span>
           `;
           container.appendChild(row);
+        });
+      }
+
+      // Score Breakdown
+      const breakdown = [];
+      const badges = report.chaos_badges || [];
+
+      // AI ratio component (0-60 pts) — always present
+      const aiRatioPts = Math.floor((report.ai_ratio || 0) * 60);
+      if (aiRatioPts > 0) {
+        breakdown.push({ label: `AI Ratio`, pts: aiRatioPts, bad: true });
+      }
+
+      // Tests — from has_tests field or chaos badge
+      if (badges.includes('no-tests') || !report.has_tests) {
+        breakdown.push({ label: 'No Tests', pts: 20, bad: true });
+      }
+
+      // .env in git
+      if (badges.includes('env-in-git')) {
+        breakdown.push({ label: '.env in Git', pts: 20, bad: true });
+      }
+
+      // No linting
+      if (badges.includes('no-linting')) {
+        breakdown.push({ label: 'No Linting', pts: 10, bad: true });
+      }
+
+      // No CI/CD
+      if (badges.includes('no-ci-cd')) {
+        breakdown.push({ label: 'No CI/CD', pts: 10, bad: true });
+      }
+
+      // Boomer AI
+      if (badges.includes('boomer-ai')) {
+        breakdown.push({ label: 'Boomer AI', pts: 10, bad: true });
+      }
+
+      // node_modules in git
+      if (badges.includes('node-modules')) {
+        breakdown.push({ label: 'node_modules in Git', pts: 15, bad: true });
+      }
+
+      // Mega commit
+      if (badges.includes('mega-commit')) {
+        breakdown.push({ label: 'Mega Commit', pts: 10, bad: true });
+      }
+
+      // No .gitignore
+      if (badges.includes('no-gitignore')) {
+        breakdown.push({ label: 'No .gitignore', pts: 10, bad: true });
+      }
+
+      // No README
+      if (badges.includes('no-readme')) {
+        breakdown.push({ label: 'No README', pts: 10, bad: true });
+      }
+
+      // TODO flood
+      if (badges.includes('todo-flood')) {
+        breakdown.push({ label: 'TODO Flood', pts: 5, bad: true });
+      }
+
+      // Single branch
+      if (badges.includes('single-branch')) {
+        breakdown.push({ label: 'Single Branch', pts: 5, bad: true });
+      }
+
+      // Deps bloat (0-10 pts)
+      const depsCount = report.deps_count || 0;
+      if (depsCount > 0) {
+        const depsPts = Math.min(Math.floor(depsCount / 100 * 10), 10);
+        if (depsPts > 0) {
+          breakdown.push({ label: `${depsCount} Deps`, pts: depsPts, bad: true });
+        }
+      }
+
+      // Good things (invert: show green pills for what's NOT in badges)
+      if (report.has_tests && !badges.includes('no-tests')) {
+        breakdown.push({ label: 'Has Tests', pts: 0, bad: false });
+      }
+      if (!badges.includes('no-linting') && badges.length > 0) {
+        breakdown.push({ label: 'Has Linting', pts: 0, bad: false });
+      }
+      if (!badges.includes('no-ci-cd') && badges.length > 0) {
+        breakdown.push({ label: 'Has CI/CD', pts: 0, bad: false });
+      }
+
+      if (breakdown.length > 0) {
+        document.getElementById('rpt-breakdown-section').classList.remove('hidden');
+        const bkContainer = document.getElementById('rpt-breakdown');
+        breakdown.forEach(item => {
+          const pill = document.createElement('span');
+          if (item.bad) {
+            pill.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[#f7768e]/10 text-[#f7768e]';
+            pill.textContent = `${item.label} +${item.pts}`;
+          } else {
+            pill.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[#9ece6a]/10 text-[#9ece6a]';
+            pill.textContent = `${item.label} \u2713`;
+          }
+          bkContainer.appendChild(pill);
         });
       }
 
