@@ -157,6 +157,7 @@ fn output_report(
             "ai_ratio": vibe_score.ai_ratio,
             "human_ratio": 1.0 - vibe_score.ai_ratio,
             "score": vibe_score.points,
+            "vibe_score": vibe_score.points,
             "grade": vibe_score.grade,
             "roast": vibe_score.roast,
             "total_commits": git_stats.total_commits,
@@ -241,6 +242,47 @@ fn share_report(
         project_stats.languages.languages.iter().collect();
     let languages_json = serde_json::to_string(&languages_map).unwrap_or_else(|_| "{}".into());
 
+    // Build chaos badges from detected patterns
+    let mut badges: Vec<&str> = Vec::new();
+    if !project_stats.tests.has_tests {
+        badges.push("no-tests");
+    }
+    if project_stats.security.env_in_git {
+        badges.push("env-in-git");
+    }
+    if project_stats.security.hardcoded_secrets_hints > 0 {
+        badges.push("hardcoded-secrets");
+    }
+    if project_stats.vibe.no_linting {
+        badges.push("no-linting");
+    }
+    if project_stats.vibe.no_ci_cd {
+        badges.push("no-ci-cd");
+    }
+    if project_stats.vibe.boomer_ai {
+        badges.push("boomer-ai");
+    }
+    if project_stats.vibe.node_modules_in_git {
+        badges.push("node-modules");
+    }
+    if project_stats.vibe.no_gitignore {
+        badges.push("no-gitignore");
+    }
+    if project_stats.vibe.no_readme {
+        badges.push("no-readme");
+    }
+    if project_stats.vibe.todo_flood {
+        badges.push("todo-flood");
+    }
+    if project_stats.vibe.single_branch {
+        badges.push("single-branch");
+    }
+    if project_stats.vibe.mega_commit {
+        badges.push("mega-commit");
+    }
+    let chaos_badges_json =
+        serde_json::to_string(&badges).unwrap_or_else(|_| "[]".into());
+
     let payload = share::upload::ReportPayload {
         github_username,
         repo_name: short_repo_name,
@@ -252,8 +294,11 @@ fn share_report(
         deps_count: project_stats.deps.total,
         has_tests: project_stats.tests.has_tests,
         total_lines: project_stats.languages.total_lines,
+        total_commits: git_stats.total_commits,
+        ai_commits: git_stats.ai_commits,
         languages: languages_json,
         repo_fingerprint: git_stats.repo_fingerprint.clone(),
+        chaos_badges: chaos_badges_json,
     };
 
     eprintln!("\n  Uploading report...");

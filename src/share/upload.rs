@@ -12,8 +12,11 @@ pub struct ReportPayload {
     pub deps_count: usize,
     pub has_tests: bool,
     pub total_lines: usize,
+    pub total_commits: usize,
+    pub ai_commits: usize,
     pub languages: String, // JSON string
     pub repo_fingerprint: Option<String>,
+    pub chaos_badges: String, // JSON array of badge names
 }
 
 #[derive(Deserialize, Debug)]
@@ -65,14 +68,20 @@ mod tests {
             deps_count: 42,
             has_tests: false,
             total_lines: 5000,
+            total_commits: 100,
+            ai_commits: 75,
             languages: r#"{"TypeScript":3000,"Rust":2000}"#.into(),
             repo_fingerprint: Some("abc123:https://github.com/user/repo.git".into()),
+            chaos_badges: r#"["no-tests","boomer-ai"]"#.into(),
         };
         let json = serde_json::to_value(&payload).unwrap();
         assert_eq!(json["ai_ratio"], 0.75);
         assert_eq!(json["score_grade"], "B+");
         assert_eq!(json["has_tests"], false);
         assert!(json["github_username"].is_string());
+        assert_eq!(json["total_commits"], 100);
+        assert_eq!(json["ai_commits"], 75);
+        assert_eq!(json["chaos_badges"], r#"["no-tests","boomer-ai"]"#);
     }
 
     #[test]
@@ -88,13 +97,19 @@ mod tests {
             deps_count: 0,
             has_tests: true,
             total_lines: 100,
+            total_commits: 10,
+            ai_commits: 0,
             languages: "{}".into(),
             repo_fingerprint: None,
+            chaos_badges: "[]".into(),
         };
         let json = serde_json::to_value(&payload).unwrap();
         assert!(json["github_username"].is_null());
         assert!(json["repo_name"].is_null());
         assert!(json["repo_fingerprint"].is_null());
+        assert_eq!(json["total_commits"], 10);
+        assert_eq!(json["ai_commits"], 0);
+        assert_eq!(json["chaos_badges"], "[]");
     }
 
     #[test]
@@ -112,10 +127,14 @@ mod tests {
             deps_count: 10,
             has_tests: true,
             total_lines: 1000,
+            total_commits: 50,
+            ai_commits: 25,
             languages: "{}".into(),
             repo_fingerprint: Some(fingerprint.into()),
+            chaos_badges: r#"["no-linting"]"#.into(),
         };
         let json = serde_json::to_value(&payload).unwrap();
         assert_eq!(json["repo_fingerprint"], fingerprint);
+        assert_eq!(json["chaos_badges"], r#"["no-linting"]"#);
     }
 }
