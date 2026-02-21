@@ -1,6 +1,7 @@
 - Always document and update MD files when adding/moddying a feature or using a new service
 - Always be sure to delete dead code after replacing/refactoring it
 - Always run tests after important changes and fix them if not green
+- On CLI changes: bump version in Cargo.toml, `git tag -a vX.Y.Z -m "vX.Y.Z"`, push tag (triggers GitHub Actions release build), then `cargo publish -p vibereport`
 
 # Vibereport
 
@@ -111,6 +112,15 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 - Scan page: AI% as hero metric, Vibe Score secondary
 - Report page: AI% as hero, Vibe Score + Grade secondary
 - Trends page: index stacked area (primary) + community section (secondary)
+
+## Distribution
+- **Install scripts**: `web/frontend/public/install.sh` (Unix) + `web/frontend/public/install.ps1` (Windows), served at vibereport.dev/install.sh and vibereport.dev/install.ps1
+- **Install (Unix)**: `curl -fsSL https://vibereport.dev/install.sh | sh`
+- **Install (Windows)**: `irm https://vibereport.dev/install.ps1 | iex`
+- **Install (cargo)**: `cargo install vibereport`
+- **GitHub Releases**: tag `vX.Y.Z` triggers `.github/workflows/release.yml` → builds 4 targets (linux-x64, macos-x64, macos-arm64, windows-x64) → uploads `.tar.gz`/`.zip` to release
+- **crates.io**: `cargo publish -p vibereport` (vps-worker has `publish = false`)
+- **Release flow**: bump version in Cargo.toml → commit → `git tag -a vX.Y.Z -m "vX.Y.Z"` → `git push origin vX.Y.Z` → wait for CI → `cargo publish -p vibereport`
 
 ## Key Design Decisions
 - Share by default (--no-share to opt out) for maximum leaderboard participation
