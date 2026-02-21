@@ -26,7 +26,7 @@ for page in $(seq 1 6); do
   echo "  Stars page $page/6..."
   response=$(curl -sf -H "Authorization: Bearer $TOKEN" \
     -H "Accept: application/vnd.github.v3+json" \
-    "https://api.github.com/search/repositories?q=stars:%3E1000&sort=stars&order=desc&per_page=100&page=$page")
+    "https://api.github.com/search/repositories?q=stars:%3E1000+pushed:%3E2025-06-01&sort=stars&order=desc&per_page=100&page=$page")
 
   # Parse each repo: full_name and stargazers_count
   echo "$response" | jq -r '.items[] | "\(.full_name)|\(.stargazers_count)"' | while IFS='|' read -r slug stars; do
