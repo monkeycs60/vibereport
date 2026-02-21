@@ -20,31 +20,45 @@ const chartBottom = 200;
 const chartW = chartRight - chartLeft;
 const chartH = chartBottom - chartTop;
 
-// Map data to coordinates
+// Dynamic Y-axis: auto-scale based on data
+const maxAi = snapshots.length > 0
+  ? Math.max(...snapshots.map(s => s.ai_percent))
+  : 5;
+// Y max: round up to next nice step, minimum 5%
+const niceSteps = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
+const yMax = niceSteps.find(s => s >= maxAi * 1.8) || 100;
+
+// Generate Y-axis labels (4-5 evenly spaced)
+const yLabelCount = yMax <= 10 ? 5 : 4;
+const yLabels = Array.from({ length: yLabelCount + 1 }, (_, i) => {
+  const val = (yMax / yLabelCount) * i;
+  return Math.round(val * 10) / 10;
+});
+
+// Map data to coordinates using dynamic scale
 const points = snapshots.map((s, i) => {
   const x = snapshots.length === 1
     ? chartLeft + chartW / 2
     : chartLeft + (i / (snapshots.length - 1)) * chartW;
-  const aiPct = Math.min(Math.max(s.ai_percent, 0), 100);
-  const yAi = chartBottom - (aiPct / 100) * chartH;
-  return { x, yAi, aiPct, date: s.snapshot_date };
+  const aiPct = Math.min(Math.max(s.ai_percent, 0), yMax);
+  const yAi = chartBottom - (aiPct / yMax) * chartH;
+  return {
+    x,
+    yAi,
+    aiPct: s.ai_percent,
+    date: s.snapshot_date,
+    totalCommits: s.total_commits,
+    aiCommits: s.total_ai_commits,
+  };
 });
 
-// Build SVG paths for stacked areas (only with 2+ points)
+// Build SVG paths for areas (only with 2+ points)
 let aiAreaPath = '';
-let humanAreaPath = '';
 let aiLinePath = '';
 
 if (points.length >= 2) {
-  // AI area: bottom to AI% line
   const forwardAi = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.yAi.toFixed(1)}`).join(' ');
   aiAreaPath = `${forwardAi} L${points[points.length - 1].x.toFixed(1)},${chartBottom} L${points[0].x.toFixed(1)},${chartBottom} Z`;
-
-  // Human area: AI% line up to top (0% = chartTop, 100% = chartBottom)
-  const forwardHuman = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.yAi.toFixed(1)}`).join(' ');
-  humanAreaPath = `${forwardHuman} L${points[points.length - 1].x.toFixed(1)},${chartTop} L${points[0].x.toFixed(1)},${chartTop} Z`;
-
-  // AI boundary line
   aiLinePath = forwardAi;
 }
 
@@ -57,8 +71,15 @@ function formatDate(d: string): string {
   return `${monthNames[monthIdx]} ${day}`;
 }
 
-// Y-axis labels
-const yLabels = [0, 25, 50, 75, 100];
+function formatNum(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+// Human % for annotation
+const latestAi = snapshots.length > 0 ? snapshots[snapshots.length - 1].ai_percent : 0;
+const humanPct = (100 - latestAi).toFixed(1);
 ---
 
 <div class="w-full overflow-hidden rounded-xl border border-tokyo-border/30 bg-tokyo-surface/30 p-4">
@@ -66,18 +87,14 @@ const yLabels = [0, 25, 50, 75, 100];
     <svg viewBox={`0 0 ${viewW} ${viewH}`} class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="aiAreaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#f7768e" stop-opacity="0.4" />
-          <stop offset="100%" stop-color="#f7768e" stop-opacity="0.05" />
-        </linearGradient>
-        <linearGradient id="humanAreaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#7aa2f7" stop-opacity="0.05" />
-          <stop offset="100%" stop-color="#7aa2f7" stop-opacity="0.3" />
+          <stop offset="0%" stop-color="#f7768e" stop-opacity="0.5" />
+          <stop offset="100%" stop-color="#f7768e" stop-opacity="0.08" />
         </linearGradient>
       </defs>
 
       {/* Grid lines */}
       {yLabels.map((pct) => {
-        const y = chartBottom - (pct / 100) * chartH;
+        const y = chartBottom - (pct / yMax) * chartH;
         return (
           <line
             x1={chartLeft}
@@ -93,7 +110,7 @@ const yLabels = [0, 25, 50, 75, 100];
 
       {/* Y-axis labels */}
       {yLabels.map((pct) => {
-        const y = chartBottom - (pct / 100) * chartH;
+        const y = chartBottom - (pct / yMax) * chartH;
         return (
           <text
             x={chartLeft - 8}
@@ -103,24 +120,46 @@ const yLabels = [0, 25, 50, 75, 100];
             font-size="10"
             font-family="JetBrains Mono, monospace"
           >
-            {pct}%
+            {pct % 1 === 0 ? pct : pct.toFixed(1)}%
           </text>
         );
       })}
 
-      {/* Human area (top — blue) */}
-      <path d={humanAreaPath} fill="url(#humanAreaGrad)" />
-
-      {/* AI area (bottom — red/pink) */}
+      {/* AI area (red/pink gradient) */}
       <path d={aiAreaPath} fill="url(#aiAreaGrad)" />
 
       {/* AI boundary line */}
-      <path d={aiLinePath} fill="none" stroke="#f7768e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <path d={aiLinePath} fill="none" stroke="#f7768e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
 
-      {/* Data point circles */}
+      {/* Data point circles with hover tooltips */}
       {points.map((p) => (
-        <circle cx={p.x} cy={p.yAi} r="3.5" fill="#1a1b26" stroke="#f7768e" stroke-width="2" />
+        <g class="trend-point" style="cursor: pointer;">
+          {/* Larger invisible hit area for hover */}
+          <circle cx={p.x} cy={p.yAi} r="12" fill="transparent" />
+          {/* Visible point */}
+          <circle cx={p.x} cy={p.yAi} r="4" fill="#1a1b26" stroke="#f7768e" stroke-width="2.5" />
+          <title>{`${formatDate(p.date)}: ${p.aiPct.toFixed(2)}% AI (${formatNum(p.aiCommits)} AI / ${formatNum(p.totalCommits)} total)`}</title>
+        </g>
       ))}
+
+      {/* Value labels on each point */}
+      {points.map((p, i) => {
+        const showEvery = snapshots.length > 20 ? 5 : snapshots.length > 10 ? 3 : 1;
+        if (i % showEvery !== 0 && i !== snapshots.length - 1) return null;
+        return (
+          <text
+            x={p.x}
+            y={p.yAi - 12}
+            text-anchor="middle"
+            fill="#f7768e"
+            font-size="10"
+            font-weight="bold"
+            font-family="JetBrains Mono, monospace"
+          >
+            {p.aiPct.toFixed(1)}%
+          </text>
+        );
+      })}
 
       {/* X-axis date labels */}
       {points.map((p, i) => {
@@ -140,33 +179,43 @@ const yLabels = [0, 25, 50, 75, 100];
         );
       })}
 
-      {/* Area labels */}
-      <text
-        x={chartLeft + 10}
-        y={chartTop + 18}
-        fill="#7aa2f7"
-        font-size="10"
-        font-family="JetBrains Mono, monospace"
-        opacity="0.7"
-      >
-        Human
-      </text>
+      {/* Label: "AI %" bottom-left */}
       <text
         x={chartLeft + 10}
         y={chartBottom - 8}
         fill="#f7768e"
         font-size="10"
         font-family="JetBrains Mono, monospace"
-        opacity="0.7"
+        opacity="0.8"
       >
-        AI
+        AI commits
+      </text>
+
+      {/* Human annotation top-right */}
+      <text
+        x={chartRight - 10}
+        y={chartTop + 14}
+        text-anchor="end"
+        fill="#7aa2f7"
+        font-size="9"
+        font-family="JetBrains Mono, monospace"
+        opacity="0.5"
+      >
+        {humanPct}% Human
       </text>
     </svg>
   ) : snapshots.length === 1 ? (
     <svg viewBox={`0 0 ${viewW} ${viewH}`} class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="aiAreaGradSingle" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#f7768e" stop-opacity="0.5" />
+          <stop offset="100%" stop-color="#f7768e" stop-opacity="0.08" />
+        </linearGradient>
+      </defs>
+
       {/* Grid lines */}
       {yLabels.map((pct) => {
-        const y = chartBottom - (pct / 100) * chartH;
+        const y = chartBottom - (pct / yMax) * chartH;
         return (
           <line
             x1={chartLeft}
@@ -182,7 +231,7 @@ const yLabels = [0, 25, 50, 75, 100];
 
       {/* Y-axis labels */}
       {yLabels.map((pct) => {
-        const y = chartBottom - (pct / 100) * chartH;
+        const y = chartBottom - (pct / yMax) * chartH;
         return (
           <text
             x={chartLeft - 8}
@@ -192,7 +241,7 @@ const yLabels = [0, 25, 50, 75, 100];
             font-size="10"
             font-family="JetBrains Mono, monospace"
           >
-            {pct}%
+            {pct % 1 === 0 ? pct : pct.toFixed(1)}%
           </text>
         );
       })}
