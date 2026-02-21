@@ -1,44 +1,16 @@
 ---
 interface Props {
-  indexAiCommits: number;
-  indexHumanCommits: number;
-  indexTotalRepos: number;
-  indexSnapshotDate: string | null;
-  communityAiCommits: number;
-  communityHumanCommits: number;
-  communityTotalRepos: number;
+  aiCommits: number;
+  humanCommits: number;
+  totalRepos: number;
+  snapshotDate: string | null;
 }
 
-const {
-  indexAiCommits, indexHumanCommits, indexTotalRepos, indexSnapshotDate,
-  communityAiCommits, communityHumanCommits, communityTotalRepos,
-} = Astro.props;
+const { aiCommits, humanCommits, totalRepos, snapshotDate } = Astro.props;
 
-// Pre-compute both datasets as JSON for client-side toggle
-const datasets = {
-  index: {
-    ai: indexAiCommits,
-    human: indexHumanCommits,
-    total: indexAiCommits + indexHumanCommits,
-    repos: indexTotalRepos,
-    label: indexSnapshotDate
-      ? `Based on ${indexTotalRepos.toLocaleString()} top GitHub repos — updated ${indexSnapshotDate}`
-      : `Based on ${indexTotalRepos.toLocaleString()} top GitHub repos`,
-  },
-  community: {
-    ai: communityAiCommits,
-    human: communityHumanCommits,
-    total: communityAiCommits + communityHumanCommits,
-    repos: communityTotalRepos,
-    label: `Across ${communityTotalRepos.toLocaleString()} repos scanned by the community`,
-  },
-};
-
-// Default to index if data available, else community
-const defaultMode = indexAiCommits + indexHumanCommits > 0 ? 'index' : 'community';
-const defaultData = datasets[defaultMode];
-const aiPercent = defaultData.total > 0 ? (defaultData.ai / defaultData.total) * 100 : 0;
-const humanPercent = defaultData.total > 0 ? 100 - aiPercent : 100;
+const total = aiCommits + humanCommits;
+const aiPercent = total > 0 ? (aiCommits / total) * 100 : 0;
+const humanPercent = total > 0 ? 100 - aiPercent : 100;
 
 function formatNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -54,33 +26,7 @@ function getPhrase(pct: number): string {
 }
 ---
 
-<div class="tug-of-war w-full" id="tug-of-war" data-datasets={JSON.stringify(datasets)} data-default-mode={defaultMode}>
-  <!-- Toggle -->
-  <div class="flex items-center justify-center gap-0 mb-6">
-    <button
-      class:list={[
-        'toggle-btn px-3 py-1.5 text-xs font-mono rounded-l-md border transition-all',
-        defaultMode === 'index'
-          ? 'bg-tokyo-cyan/20 text-tokyo-cyan border-tokyo-cyan/40'
-          : 'bg-tokyo-surface/40 text-tokyo-dimmed border-tokyo-border/40 hover:text-tokyo-text',
-      ]}
-      data-mode="index"
-    >
-      GitHub Index
-    </button>
-    <button
-      class:list={[
-        'toggle-btn px-3 py-1.5 text-xs font-mono rounded-r-md border transition-all',
-        defaultMode === 'community'
-          ? 'bg-tokyo-cyan/20 text-tokyo-cyan border-tokyo-cyan/40'
-          : 'bg-tokyo-surface/40 text-tokyo-dimmed border-tokyo-border/40 hover:text-tokyo-text',
-      ]}
-      data-mode="community"
-    >
-      Community
-    </button>
-  </div>
-
+<div class="tug-of-war w-full" id="tug-of-war">
   <!-- Labels row -->
   <div class="flex items-center justify-between mb-4">
     <!-- AI side -->
@@ -88,7 +34,7 @@ function getPhrase(pct: number): string {
       <span class="text-2xl sm:text-3xl">&#x1F916;</span>
       <div class="flex flex-col">
         <span class="text-sm sm:text-base font-bold text-[#f7768e]">AI</span>
-        <span class="text-xs text-tokyo-dimmed font-mono" data-ai-count>{formatNum(defaultData.ai)} commits</span>
+        <span class="text-xs text-tokyo-dimmed font-mono">{formatNum(aiCommits)} commits</span>
       </div>
     </div>
 
@@ -96,7 +42,7 @@ function getPhrase(pct: number): string {
     <div class="flex items-center gap-2.5">
       <div class="flex flex-col items-end">
         <span class="text-sm sm:text-base font-bold text-[#7aa2f7]">Humans</span>
-        <span class="text-xs text-tokyo-dimmed font-mono" data-human-count>{formatNum(defaultData.human)} commits</span>
+        <span class="text-xs text-tokyo-dimmed font-mono">{formatNum(humanCommits)} commits</span>
       </div>
       <span class="text-2xl sm:text-3xl">&#x1F9D1;</span>
     </div>
@@ -158,9 +104,10 @@ function getPhrase(pct: number): string {
     {getPhrase(aiPercent)}
   </p>
 
-  <!-- Legend -->
-  <p class="text-center mt-2 text-xs text-tokyo-dimmed/60 font-mono" id="battle-legend">
-    {defaultData.label}
+  <!-- Full context legend -->
+  <p class="text-center mt-2 text-xs text-tokyo-dimmed/60 font-mono leading-relaxed">
+    {formatNum(aiCommits)} AI commits vs {formatNum(humanCommits)} human commits<br />
+    across {totalRepos.toLocaleString()} top GitHub repos since Jan 2026 — updated daily
   </p>
 </div>
 
@@ -211,138 +158,33 @@ function getPhrase(pct: number): string {
     const container = document.getElementById('tug-of-war');
     if (!container) return;
 
-    const datasets = JSON.parse(container.dataset.datasets || '{}');
-    let currentMode = container.dataset.defaultMode || 'index';
-    let hasAnimated = false;
-
     const aiBar = container.querySelector('.ai-bar') as HTMLElement;
     const humanBar = container.querySelector('.human-bar') as HTMLElement;
     const phrase = document.getElementById('battle-phrase');
-    const legend = document.getElementById('battle-legend');
-    const aiLabel = container.querySelector('[data-ai-count]') as HTMLElement;
-    const humanLabel = container.querySelector('[data-human-count]') as HTMLElement;
 
-    function formatNum(n: number): string {
-      if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-      if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-      return String(n);
+    if (aiBar) aiBar.style.width = aiBar.dataset.targetWidth || '0%';
+    if (humanBar) humanBar.style.width = humanBar.dataset.targetWidth || '0%';
+
+    if (phrase) {
+      setTimeout(() => {
+        phrase.classList.remove('opacity-0');
+        phrase.classList.add('opacity-100');
+      }, 1200);
     }
-
-    function getPhrase(pct: number): string {
-      if (pct < 5) return 'Humans are winning... for now.';
-      if (pct < 20) return 'The machines are gaining ground.';
-      if (pct < 50) return "It's anyone's game.";
-      return 'AI has taken over.';
-    }
-
-    function updateBars(mode: string, animate: boolean) {
-      const d = datasets[mode];
-      if (!d || !aiBar || !humanBar) return;
-
-      const aiPct = d.total > 0 ? (d.ai / d.total) * 100 : 0;
-      const humanPct = d.total > 0 ? 100 - aiPct : 100;
-
-      // Disable transition for instant toggle (after initial animation)
-      if (!animate) {
-        aiBar.style.transition = 'none';
-        humanBar.style.transition = 'none';
-      } else {
-        aiBar.style.transition = '';
-        humanBar.style.transition = '';
-      }
-
-      aiBar.style.width = `${aiPct}%`;
-      humanBar.style.width = `${humanPct}%`;
-
-      // Re-enable transitions after paint
-      if (!animate) {
-        requestAnimationFrame(() => {
-          aiBar.style.transition = '';
-          humanBar.style.transition = '';
-        });
-      }
-
-      // Update percentage labels inside bars
-      const aiPctLabel = aiBar.querySelector('span');
-      const humanPctLabel = humanBar.querySelector('span');
-      if (aiPctLabel) {
-        if (aiPct >= 8) {
-          aiPctLabel.textContent = `${Math.round(aiPct)}%`;
-          aiPctLabel.style.display = '';
-        } else {
-          aiPctLabel.style.display = 'none';
-        }
-      }
-      if (humanPctLabel) {
-        if (humanPct >= 8) {
-          humanPctLabel.textContent = `${Math.round(humanPct)}%`;
-          humanPctLabel.style.display = '';
-        } else {
-          humanPctLabel.style.display = 'none';
-        }
-      }
-
-      // Update commit counts
-      if (aiLabel) aiLabel.textContent = `${formatNum(d.ai)} commits`;
-      if (humanLabel) humanLabel.textContent = `${formatNum(d.human)} commits`;
-
-      // Update phrase and legend
-      if (phrase) phrase.textContent = getPhrase(aiPct);
-      if (legend) legend.textContent = d.label;
-
-      // Update glow backdrop
-      const glowDiv = container.querySelector('.bar-wrapper > div:first-child') as HTMLElement;
-      if (glowDiv) {
-        glowDiv.style.background = `linear-gradient(to right, #f7768e 0%, #f7768e ${aiPct}%, #7aa2f7 ${aiPct}%, #7aa2f7 100%)`;
-      }
-
-      // Update toggle button styles
-      container.querySelectorAll('.toggle-btn').forEach((btn) => {
-        const el = btn as HTMLElement;
-        const btnMode = el.dataset.mode;
-        const rounding = btnMode === 'index' ? 'rounded-l-md' : 'rounded-r-md';
-        if (btnMode === mode) {
-          el.className = `toggle-btn px-3 py-1.5 text-xs font-mono ${rounding} border border-tokyo-cyan/40 bg-tokyo-cyan/20 text-tokyo-cyan transition-all`;
-        } else {
-          el.className = `toggle-btn px-3 py-1.5 text-xs font-mono ${rounding} border border-tokyo-border/40 bg-tokyo-surface/40 text-tokyo-dimmed hover:text-tokyo-text transition-all`;
-        }
-      });
-    }
-
-    // Toggle click handlers
-    container.querySelectorAll('.toggle-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const mode = (btn as HTMLElement).dataset.mode || 'index';
-        if (mode !== currentMode) {
-          currentMode = mode;
-          updateBars(mode, false);
-        }
-      });
-    });
-
-    // Initial animation on scroll
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && !hasAnimated) {
-            hasAnimated = true;
-            requestAnimationFrame(() => updateBars(currentMode, true));
-            if (phrase) {
-              setTimeout(() => {
-                phrase.classList.remove('opacity-0');
-                phrase.classList.add('opacity-100');
-              }, 1200);
-            }
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.2 }
-    );
-
-    observer.observe(container);
   }
 
-  document.addEventListener('astro:page-load', initTugOfWar);
-  initTugOfWar();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          initTugOfWar();
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.2 }
+  );
+
+  const el = document.getElementById('tug-of-war');
+  if (el) observer.observe(el);
 </script>
