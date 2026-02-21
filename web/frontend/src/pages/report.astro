@@ -150,6 +150,30 @@ const apiUrl = getApiUrl();
     }
   }
 
+  function getScoreRoast(score) {
+    if (score >= 200) return "This isn't a codebase, it's a cry for help.";
+    if (score >= 190) return "You somehow made code worse than no code at all.";
+    if (score >= 180) return "Every commit is a new war crime against software.";
+    if (score >= 170) return "Your repo is a museum of bad decisions.";
+    if (score >= 160) return "Even ChatGPT would refuse to touch this.";
+    if (score >= 150) return "Your codebase needs therapy, not a code review.";
+    if (score >= 140) return "The only thing tested here is everyone's patience.";
+    if (score >= 130) return "Spaghetti code? This is a whole Italian restaurant.";
+    if (score >= 120) return "You wrote code like you're speedrunning tech debt.";
+    if (score >= 110) return "AI wrote this and even AI is embarrassed.";
+    if (score >= 100) return "Congratulations, you've achieved legendary chaos.";
+    if (score >= 90) return "Your repo makes junior devs feel better about themselves.";
+    if (score >= 80) return "This code was clearly written at 3 AM with no regrets.";
+    if (score >= 70) return "Half AI, half hope, zero tests.";
+    if (score >= 60) return "The vibes are… questionable.";
+    if (score >= 50) return "Somewhere between 'it works' and 'why does it work?'";
+    if (score >= 40) return "Not great, not terrible. Like 3.6 roentgen.";
+    if (score >= 30) return "Slightly chaotic but still standing. Respect.";
+    if (score >= 20) return "Pretty clean. Did a human actually write this?";
+    if (score >= 10) return "Almost suspiciously well-maintained.";
+    return "Pristine. Either you're lying or you have no life.";
+  }
+
   async function loadReport() {
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
@@ -196,7 +220,8 @@ const apiUrl = getApiUrl();
       gradeText.style.color = color;
 
       // Roast
-      document.getElementById('rpt-roast').textContent = `"${report.roast}"`;
+      document.getElementById('rpt-roast').textContent = `"${getScoreRoast(report.score)}"`;
+
 
       // Languages
       const langs = Object.entries(report.languages || {})

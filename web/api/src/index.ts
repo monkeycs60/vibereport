@@ -17,10 +17,10 @@ app.use('/*', cors({
   origin: (origin) => {
     if (!origin) return 'https://vibereport.dev'
     if (origin.startsWith('http://localhost:')) return origin
-    if (origin === 'https://vibereport.dev') return origin
+    if (origin === 'https://vibereport.dev' || origin === 'https://www.vibereport.dev') return origin
     if (origin.endsWith('.vibereport.pages.dev') || origin === 'https://vibereport.pages.dev') return origin
     if (origin.endsWith('.clement-serizay.workers.dev')) return origin
-    if (origin === 'https://vibereport.dev' || origin.endsWith('.vercel.app')) return origin
+    if (origin === 'https://vibereport.dev' || origin === 'https://www.vibereport.dev' || origin.endsWith('.vercel.app')) return origin
     return 'https://vibereport.dev'
   },
   allowMethods: ['GET', 'POST', 'OPTIONS'],
