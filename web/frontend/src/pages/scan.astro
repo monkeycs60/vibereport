@@ -66,36 +66,37 @@ const apiUrl = getApiUrl();
       <!-- Result state -->
       <div id="scan-result" class="hidden">
         <div class="p-6 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 backdrop-blur-sm">
-          <div class="flex items-start justify-between mb-4">
-            <div>
-              <h3 id="result-repo" class="text-lg font-bold text-tokyo-text"></h3>
-              <p class="text-xs text-tokyo-dimmed mt-1">
+          <!-- Header: Repo name + Grade badge (big, prominent) + Vibe Score -->
+          <div class="flex items-center gap-4 mb-5">
+            <div id="result-grade" class="w-20 h-20 flex-shrink-0 flex items-center justify-center rounded-2xl text-4xl font-bold border-2"></div>
+            <div class="flex-1 min-w-0">
+              <h3 id="result-repo" class="text-xl font-bold text-tokyo-text truncate"></h3>
+              <div class="flex items-center gap-3 mt-1.5">
+                <span class="text-xs text-tokyo-dimmed">Vibe Score</span>
+                <span id="result-score" class="text-lg font-bold"></span>
+              </div>
+              <p class="text-xs text-tokyo-dimmed mt-0.5">
                 <span id="result-commits"></span> commits analyzed
               </p>
             </div>
-            <div id="result-grade" class="w-16 h-16 flex items-center justify-center rounded-xl text-3xl font-bold border-2"></div>
           </div>
 
-          <!-- AI ratio bar -->
-          <div class="mb-4">
+          <!-- AI% horizontal bar (red=AI, blue=Human, tug-of-war style) -->
+          <div class="mb-5">
             <div class="flex items-center justify-between text-xs mb-1.5">
-              <span class="text-tokyo-dimmed">AI: <span id="result-ai-count"></span> commits (<span id="result-ai-pct"></span>%)</span>
-              <span class="text-tokyo-dimmed">Human: <span id="result-human-count"></span> commits (<span id="result-human-pct"></span>%)</span>
+              <span class="text-[#f7768e]">AI <span id="result-ai-count"></span> (<span id="result-ai-pct"></span>%)</span>
+              <span class="text-[#7aa2f7]">(<span id="result-human-pct"></span>%) <span id="result-human-count"></span> Human</span>
             </div>
-            <div class="h-3 bg-tokyo-bg rounded-full overflow-hidden">
-              <div id="result-ai-bar" class="h-full rounded-full transition-all duration-1000 ease-out" style="width: 0%; background: linear-gradient(90deg, #f7768e, #e0af68);"></div>
+            <div class="h-4 bg-[#7aa2f7]/30 rounded-full overflow-hidden relative">
+              <div id="result-ai-bar" class="h-full rounded-full transition-all duration-1000 ease-out" style="width: 0%; background: linear-gradient(90deg, #f7768e, #ff9e64);"></div>
             </div>
-          </div>
-
-          <!-- Score -->
-          <div class="flex items-center gap-2 mb-4">
-            <span class="text-xs text-tokyo-dimmed">Score:</span>
-            <span id="result-score" class="text-sm font-bold"></span>
-            <span class="text-xs text-tokyo-dimmed">/100</span>
           </div>
 
           <!-- Roast -->
           <p id="result-roast" class="text-sm text-tokyo-yellow italic mb-4"></p>
+
+          <!-- Chaos Badges (colored pills) -->
+          <div id="result-badges" class="flex flex-wrap gap-1.5 mb-4"></div>
 
           <!-- Languages -->
           <div id="result-langs" class="flex flex-wrap gap-1.5 mb-6"></div>
@@ -169,8 +170,11 @@ const apiUrl = getApiUrl();
   }
 
   function getGradeClasses(grade) {
-    switch (grade) {
-      case 'S': case 'A': return ['text-[#9ece6a]', 'bg-[#9ece6a]/20', 'border-[#9ece6a]/40'];
+    if (!grade) return ['text-[#565f89]', 'bg-[#565f89]/20', 'border-[#565f89]/40'];
+    const g = grade.charAt(0);
+    switch (g) {
+      case 'S': return ['text-[#9ece6a]', 'bg-[#9ece6a]/20', 'border-[#9ece6a]/40'];
+      case 'A': return ['text-[#9ece6a]', 'bg-[#9ece6a]/20', 'border-[#9ece6a]/40'];
       case 'B': return ['text-[#7aa2f7]', 'bg-[#7aa2f7]/20', 'border-[#7aa2f7]/40'];
       case 'C': return ['text-[#e0af68]', 'bg-[#e0af68]/20', 'border-[#e0af68]/40'];
       case 'D': return ['text-[#f7768e]', 'bg-[#f7768e]/20', 'border-[#f7768e]/40'];
@@ -183,6 +187,39 @@ const apiUrl = getApiUrl();
     Python: '#9ece6a', Go: '#7dcfff', Java: '#ff9e64',
     'C++': '#bb9af7', C: '#565f89', Ruby: '#f7768e', Swift: '#ff9e64',
   };
+
+  // Badge color map: category -> [bg, text, border]
+  const badgeStyles = {
+    // Red: security issues
+    'env-in-git':          { bg: 'rgba(247,118,142,0.15)', text: '#f7768e', border: 'rgba(247,118,142,0.3)', label: 'env in git' },
+    'hardcoded-secrets':   { bg: 'rgba(247,118,142,0.15)', text: '#f7768e', border: 'rgba(247,118,142,0.3)', label: 'hardcoded secrets' },
+    // Orange: bad practices
+    'no-tests':            { bg: 'rgba(255,158,100,0.15)', text: '#ff9e64', border: 'rgba(255,158,100,0.3)', label: 'no tests' },
+    'no-linting':          { bg: 'rgba(255,158,100,0.15)', text: '#ff9e64', border: 'rgba(255,158,100,0.3)', label: 'no linting' },
+    'no-ci-cd':            { bg: 'rgba(255,158,100,0.15)', text: '#ff9e64', border: 'rgba(255,158,100,0.3)', label: 'no CI/CD' },
+    // Purple: vibe patterns
+    'boomer-ai':           { bg: 'rgba(187,154,247,0.15)', text: '#bb9af7', border: 'rgba(187,154,247,0.3)', label: 'boomer AI' },
+    'node-modules':        { bg: 'rgba(187,154,247,0.15)', text: '#bb9af7', border: 'rgba(187,154,247,0.3)', label: 'node_modules' },
+    'mega-commit':         { bg: 'rgba(187,154,247,0.15)', text: '#bb9af7', border: 'rgba(187,154,247,0.3)', label: 'mega commit' },
+    // Gray: minor
+    'todo-flood':          { bg: 'rgba(86,95,137,0.15)', text: '#565f89', border: 'rgba(86,95,137,0.3)', label: 'TODO flood' },
+    'single-branch':       { bg: 'rgba(86,95,137,0.15)', text: '#565f89', border: 'rgba(86,95,137,0.3)', label: 'single branch' },
+    'no-gitignore':        { bg: 'rgba(86,95,137,0.15)', text: '#565f89', border: 'rgba(86,95,137,0.3)', label: 'no .gitignore' },
+    'no-readme':           { bg: 'rgba(86,95,137,0.15)', text: '#565f89', border: 'rgba(86,95,137,0.3)', label: 'no README' },
+  };
+
+  function renderBadges(container, badges) {
+    container.innerHTML = '';
+    if (!badges || badges.length === 0) return;
+    for (const badge of badges) {
+      const style = badgeStyles[badge] || { bg: 'rgba(86,95,137,0.15)', text: '#565f89', border: 'rgba(86,95,137,0.3)', label: badge.replace(/-/g, ' ') };
+      const pill = document.createElement('span');
+      pill.className = 'inline-block px-2.5 py-1 rounded-full text-xs font-medium';
+      pill.style.cssText = `background:${style.bg}; color:${style.text}; border:1px solid ${style.border};`;
+      pill.textContent = style.label;
+      container.appendChild(pill);
+    }
+  }
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -218,20 +255,24 @@ const apiUrl = getApiUrl();
       document.getElementById('result-score').textContent = data.score || '0';
       document.getElementById('result-roast').textContent = `"${data.roast || 'No roast available.'}"`;
 
-      // Grade
+      // Grade badge (big, prominent)
       const gradeEl = document.getElementById('result-grade');
       const [textCls, bgCls, borderCls] = getGradeClasses(data.grade);
-      gradeEl.className = `w-16 h-16 flex items-center justify-center rounded-xl text-3xl font-bold border-2 ${textCls} ${bgCls} ${borderCls}`;
+      gradeEl.className = `w-20 h-20 flex-shrink-0 flex items-center justify-center rounded-2xl text-4xl font-bold border-2 ${textCls} ${bgCls} ${borderCls}`;
       gradeEl.textContent = data.grade || '?';
 
       // Score color
       const scoreEl = document.getElementById('result-score');
-      scoreEl.className = `text-sm font-bold ${textCls}`;
+      scoreEl.className = `text-lg font-bold ${textCls}`;
 
-      // AI bar animation
+      // AI bar animation (red=AI, blue background=Human)
       setTimeout(() => {
         document.getElementById('result-ai-bar').style.width = `${aiPct}%`;
       }, 100);
+
+      // Chaos badges
+      const badgesEl = document.getElementById('result-badges');
+      renderBadges(badgesEl, data.chaos_badges || []);
 
       // Languages
       const langsEl = document.getElementById('result-langs');

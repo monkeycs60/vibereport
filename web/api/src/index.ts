@@ -372,6 +372,19 @@ app.post('/api/scan', async (c) => {
       }
     }
 
+    // Derive chaos badges from available data
+    // Full badge detection happens in the CLI/VPS worker with filesystem access.
+    // Here we derive what we can from commit-level analysis only.
+    const chaosBadges: string[] = []
+    if (aiRatio > 0 && Object.keys(toolCounts).length > 0) {
+      // Check if AI is used but no dedicated AI tool config is detectable
+      // (we can't check filesystem from GitHub API, so skip boomer-ai)
+    }
+    // These badges require filesystem access — only VPS worker can detect them:
+    // env-in-git, hardcoded-secrets, no-tests, no-linting, no-ci-cd,
+    // boomer-ai, node-modules, no-gitignore, no-readme, todo-flood,
+    // single-branch, mega-commit
+
     return c.json({
       id: reportId,
       repo_name: `${owner}/${repo}`,
@@ -383,6 +396,7 @@ app.post('/api/scan', async (c) => {
       score: points,
       grade,
       roast,
+      chaos_badges: chaosBadges,
       url: `https://vibereport.dev/r/${reportId}`,
     })
   } catch (err: any) {
