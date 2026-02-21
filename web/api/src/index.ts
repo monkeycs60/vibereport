@@ -20,7 +20,7 @@ app.use('/*', cors({
     if (origin === 'https://vibereport.dev') return origin
     if (origin.endsWith('.vibereport.pages.dev') || origin === 'https://vibereport.pages.dev') return origin
     if (origin.endsWith('.clement-serizay.workers.dev')) return origin
-    if (origin === 'https://vibereport.vercel.app' || origin.endsWith('.vercel.app')) return origin
+    if (origin === 'https://vibereport.dev' || origin.endsWith('.vercel.app')) return origin
     return 'https://vibereport.dev'
   },
   allowMethods: ['GET', 'POST', 'OPTIONS'],
@@ -280,7 +280,7 @@ app.post('/api/reports', async (c) => {
 
   return c.json({
     id,
-    url: `https://vibereport.vercel.app/r/${id}`,
+    url: `https://vibereport.dev/r/${id}`,
     rank,
     percentile: Math.round(percentile * 10) / 10,
   })
@@ -433,7 +433,7 @@ app.post('/api/scan', async (c) => {
           roast,
           chaos_badges: chaosBadges,
           scan_source: 'web_vps',
-          url: `https://vibereport.vercel.app/r/${reportId}`,
+          url: `https://vibereport.dev/r/${reportId}`,
         })
       }
       // VPS returned non-ok status — fall through to GitHub API
@@ -544,7 +544,7 @@ app.post('/api/scan', async (c) => {
       roast,
       chaos_badges: chaosBadges,
       scan_source: 'web_github',
-      url: `https://vibereport.vercel.app/r/${reportId}`,
+      url: `https://vibereport.dev/r/${reportId}`,
     })
   } catch (err: any) {
     if (err.message?.includes('404')) {

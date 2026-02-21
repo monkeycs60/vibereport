@@ -28,7 +28,7 @@ Rust CLI tool. "The Spotify Wrapped for your code."
 - src/share/ — upload to vibereport.dev API (share by default, --no-share to opt out)
 - src/scanner/ — multi-repo discovery (--scan-all) + remote GitHub clone
 - web/api/ — Cloudflare Workers + Hono + D1 backend (deployed at vibereport-api.clement-serizay.workers.dev)
-- web/frontend/ — Astro SSR + Tailwind frontend on Vercel (https://vibereport.vercel.app/)
+- web/frontend/ — Astro SSR + Tailwind frontend on Vercel (https://vibereport.dev)
 - vps-worker/ — Axum HTTP server for VPS scanning (deployed on 137.74.43.81)
 
 ## AI Tool Detection
@@ -66,7 +66,7 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 
 ## Domain & Web Stack
 - **Domain**: vibereport.dev (Cloudflare Registrar)
-- **Frontend**: Astro SSR on Vercel + Tailwind (Tokyo Night theme) — https://vibereport.vercel.app/ (will move to vibereport.dev)
+- **Frontend**: Astro SSR on Vercel + Tailwind (Tokyo Night theme) — https://vibereport.dev
 - **API**: Cloudflare Workers + Hono + D1 (SQLite) — https://vibereport-api.clement-serizay.workers.dev
 - **VPS Worker**: Axum HTTP server on OVH VPS — https://scan.vibereport.dev (Cloudflare Tunnel)
 - **Database**: Cloudflare D1 (vibereport-db), schema in web/api/schema.sql

@@ -103,11 +103,13 @@ The Vibe Score is a composite metric that measures how "vibe coded" your project
 | F | 0-19 | What year is it? |
 
 **Score factors:**
-- AI commit ratio (primary factor)
-- Dependency count (more deps = more vibe)
-- Test coverage (no tests = peak vibe)
-- Codebase size
-- Security chaos (.env files in git, hardcoded secrets = bonus vibe points)
+- AI commit ratio (0-60 points, dominant factor)
+- No tests (+20) / Few tests (+10)
+- .env in git (+20/file, max 60) / Hardcoded secrets (+20/each, max 60)
+- Dependency bloat (0-10 points)
+- No linting (+10) / No CI/CD (+10)
+- Boomer AI (+10) / node_modules in git (+15) / Mega commit (+10)
+- No .gitignore (+10) / No README (+10) / TODO flood (+5) / Single branch (+5)
 
 ## Features
 
@@ -127,7 +129,7 @@ The Vibe Score is a composite metric that measures how "vibe coded" your project
 
 ## Web
 
-Visit [vibereport.vercel.app](https://vibereport.vercel.app) to:
+Visit [vibereport.dev](https://vibereport.dev) to:
 - Scan any public GitHub repo instantly (analyzes all commits)
 - View the global leaderboard
 - Browse all scanned repos
