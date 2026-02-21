@@ -146,17 +146,21 @@ const humanPct = (100 - latestAi).toFixed(1);
       {points.map((p, i) => {
         const showEvery = snapshots.length > 20 ? 5 : snapshots.length > 10 ? 3 : 1;
         if (i % showEvery !== 0 && i !== snapshots.length - 1) return null;
+        const isFirst = i === 0;
+        const isLast = i === snapshots.length - 1;
+        const anchor = isFirst ? 'start' : isLast ? 'end' : 'middle';
+        const xOffset = isFirst ? 6 : isLast ? -6 : 0;
         return (
           <text
-            x={p.x}
+            x={p.x + xOffset}
             y={p.yAi - 12}
-            text-anchor="middle"
+            text-anchor={anchor}
             fill="#f7768e"
             font-size="10"
             font-weight="bold"
             font-family="JetBrains Mono, monospace"
           >
-            {p.aiPct.toFixed(1)}%
+            {p.aiPct.toFixed(2)}%
           </text>
         );
       })}
@@ -257,7 +261,7 @@ const humanPct = (100 - latestAi).toFixed(1);
         font-weight="bold"
         font-family="JetBrains Mono, monospace"
       >
-        {points[0].aiPct.toFixed(1)}% AI — Day 1
+        {points[0].aiPct.toFixed(2)}% AI — Day 1
       </text>
     </svg>
   ) : (
