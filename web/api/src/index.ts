@@ -6,6 +6,8 @@ import { cors } from 'hono/cors'
 type Bindings = {
   DB: D1Database
   GITHUB_TOKEN?: string
+  VPS_SCAN_URL?: string
+  VPS_AUTH_TOKEN?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -215,12 +217,16 @@ app.post('/api/reports', async (c) => {
   const hasTests = body.has_tests ? 1 : 0
   const totalLines = typeof body.total_lines === 'number' ? body.total_lines : 0
   const languages = typeof body.languages === 'string' ? body.languages : '{}'
+  const totalCommits = typeof body.total_commits === 'number' ? body.total_commits : 0
+  const aiCommits = typeof body.ai_commits === 'number' ? body.ai_commits : 0
+  const vibeScore = typeof body.vibe_score === 'number' ? body.vibe_score : (body.score_points as number)
+  const chaosBadges = typeof body.chaos_badges === 'string' ? body.chaos_badges : '[]'
 
   if (fingerprint) {
     // Upsert: update existing report if fingerprint matches
     await db.prepare(
-      `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages, total_commits, ai_commits, vibe_score, chaos_badges, scan_source, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cli', datetime('now'))
        ON CONFLICT(repo_fingerprint) DO UPDATE SET
          ai_ratio = excluded.ai_ratio,
          ai_tool = excluded.ai_tool,
@@ -231,21 +237,28 @@ app.post('/api/reports', async (c) => {
          has_tests = excluded.has_tests,
          total_lines = excluded.total_lines,
          languages = excluded.languages,
+         total_commits = excluded.total_commits,
+         ai_commits = excluded.ai_commits,
+         vibe_score = excluded.vibe_score,
+         chaos_badges = excluded.chaos_badges,
+         scan_source = 'cli',
          updated_at = datetime('now')`
     ).bind(
       id, fingerprint, githubUsername, repoName,
       body.ai_ratio, aiTool, body.score_points, body.score_grade, body.roast,
       depsCount, hasTests, totalLines, languages,
+      totalCommits, aiCommits, vibeScore, chaosBadges,
     ).run()
   } else {
     // No fingerprint: plain insert (for backwards compatibility)
     await db.prepare(
-      `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages, total_commits, ai_commits, vibe_score, chaos_badges, scan_source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cli')`
     ).bind(
       id, githubUsername, repoName,
       body.ai_ratio, aiTool, body.score_points, body.score_grade, body.roast,
       depsCount, hasTests, totalLines, languages,
+      totalCommits, aiCommits, vibeScore, chaosBadges,
     ).run()
   }
 
@@ -300,6 +313,138 @@ app.post('/api/scan', async (c) => {
   const owner = parts[0]
   const repo = parts[1]
 
+  // ── Try VPS worker first (full git clone analysis with vibe detectors) ──
+  const vpsUrl = c.env.VPS_SCAN_URL
+  const vpsToken = c.env.VPS_AUTH_TOKEN
+  if (vpsUrl && vpsToken) {
+    try {
+      const vpsRes = await fetch(`${vpsUrl}/scan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${vpsToken}`,
+        },
+        body: JSON.stringify({ repo: repoInput, since: '2025-01-01' }),
+        signal: AbortSignal.timeout(45000),
+      })
+      if (vpsRes.ok) {
+        const vpsData = await vpsRes.json() as Record<string, any>
+
+        // Map VPS vibereport --json output to scan response format
+        const aiRatio: number = typeof vpsData.ai_ratio === 'number' ? vpsData.ai_ratio : 0
+        const totalCommits: number = typeof vpsData.total_commits === 'number' ? vpsData.total_commits : 0
+        const aiCommits: number = typeof vpsData.ai_commits === 'number' ? vpsData.ai_commits : 0
+        const humanCommits: number = typeof vpsData.human_commits === 'number' ? vpsData.human_commits : totalCommits - aiCommits
+        const vibeScore: number = typeof vpsData.vibe_score === 'number' ? vpsData.vibe_score : (typeof vpsData.score === 'number' ? vpsData.score : 0)
+        const grade: string = typeof vpsData.grade === 'string' ? vpsData.grade : gradeFromPoints(vibeScore)
+        const roast: string = typeof vpsData.roast === 'string' ? vpsData.roast : pickRoast(vibeScore, aiRatio)
+
+        // Map ai_tools from VPS format [{tool, commits}] to {tool: count} for response
+        const toolCounts: Record<string, number> = {}
+        if (Array.isArray(vpsData.ai_tools)) {
+          for (const t of vpsData.ai_tools) {
+            if (t.tool && t.tool !== 'Human') toolCounts[t.tool] = t.commits || 0
+          }
+        }
+        const primaryTool = Object.entries(toolCounts)
+          .sort(([, a], [, b]) => b - a)[0]?.[0] || 'Human'
+
+        // Derive chaos badges from VPS vibe object
+        const chaosBadges: string[] = []
+        const vibe = vpsData.vibe
+        if (vibe && typeof vibe === 'object') {
+          if (vibe.no_linting) chaosBadges.push('no-linting')
+          if (vibe.no_ci_cd) chaosBadges.push('no-ci-cd')
+          if (vibe.boomer_ai) chaosBadges.push('boomer-ai')
+          if (vibe.node_modules_in_git) chaosBadges.push('node-modules')
+          if (vibe.no_gitignore) chaosBadges.push('no-gitignore')
+          if (vibe.no_readme) chaosBadges.push('no-readme')
+          if (vibe.todo_flood) chaosBadges.push('todo-flood')
+          if (vibe.single_branch) chaosBadges.push('single-branch')
+          if (vibe.mega_commit) chaosBadges.push('mega-commit')
+        }
+        // Add badges from other data
+        const tests = vpsData.tests
+        if (tests && typeof tests === 'object' && !tests.has_tests) chaosBadges.push('no-tests')
+        const security = vpsData.security
+        if (security && typeof security === 'object' && security.env_in_git) chaosBadges.push('env-in-git')
+
+        // Compute fingerprint — VPS doesn't return oldest commit sha, use repo URL
+        const fingerprint = `vps:https://github.com/${owner}/${repo}`
+
+        // Store in DB with scan_source = 'web_vps'
+        const db = c.env.DB
+        const id = generateId()
+
+        await db.prepare(
+          `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, total_commits, ai_commits, deps_count, has_tests, total_lines, languages, vibe_score, chaos_badges, scan_source, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'web_vps', datetime('now'))
+           ON CONFLICT(repo_fingerprint) DO UPDATE SET
+             ai_ratio = excluded.ai_ratio,
+             ai_tool = excluded.ai_tool,
+             score_points = excluded.score_points,
+             score_grade = excluded.score_grade,
+             roast = excluded.roast,
+             total_commits = excluded.total_commits,
+             ai_commits = excluded.ai_commits,
+             deps_count = excluded.deps_count,
+             has_tests = excluded.has_tests,
+             total_lines = excluded.total_lines,
+             languages = excluded.languages,
+             vibe_score = excluded.vibe_score,
+             chaos_badges = excluded.chaos_badges,
+             scan_source = 'web_vps',
+             updated_at = datetime('now')`
+        ).bind(
+          id, fingerprint, owner, repo, aiRatio, primaryTool, vibeScore, grade, roast,
+          totalCommits, aiCommits,
+          typeof vpsData.deps?.total === 'number' ? vpsData.deps.total : 0,
+          tests?.has_tests ? 1 : 0,
+          typeof vpsData.total_lines === 'number' ? vpsData.total_lines : 0,
+          typeof vpsData.languages === 'object' ? JSON.stringify(vpsData.languages) : '{}',
+          vibeScore,
+          JSON.stringify(chaosBadges),
+        ).run()
+
+        // Record in scan_history
+        await db.prepare(
+          `INSERT INTO scan_history (repo_fingerprint, repo_name, ai_ratio, score_points) VALUES (?, ?, ?, ?)`
+        ).bind(fingerprint, repo, aiRatio, vibeScore).run()
+
+        // Get the actual report ID (might be existing if upserted)
+        let reportId = id
+        const existing = await db.prepare(
+          `SELECT id FROM reports WHERE repo_fingerprint = ?`
+        ).bind(fingerprint).first()
+        if (existing) {
+          reportId = String(existing.id)
+        }
+
+        return c.json({
+          id: reportId,
+          repo_name: `${owner}/${repo}`,
+          ai_ratio: aiRatio,
+          total_commits: totalCommits,
+          ai_commits: aiCommits,
+          human_commits: humanCommits,
+          ai_tools: toolCounts,
+          score: vibeScore,
+          grade,
+          roast,
+          chaos_badges: chaosBadges,
+          scan_source: 'web_vps',
+          url: `https://vibereport.dev/r/${reportId}`,
+        })
+      }
+      // VPS returned non-ok status — fall through to GitHub API
+      console.log(`VPS scan returned ${vpsRes.status}, falling back to GitHub API`)
+    } catch (vpsErr: any) {
+      // VPS timeout or network error — fall through to GitHub API
+      console.log(`VPS scan failed: ${vpsErr.message}, falling back to GitHub API`)
+    }
+  }
+
+  // ── Fallback: GitHub API commit analysis ──
   try {
     // Analyze ALL commits via parallel fetching (20 pages at a time)
     const scan = await analyzeGitHubRepo(owner, repo, c.env.GITHUB_TOKEN)
@@ -337,8 +482,8 @@ app.post('/api/scan', async (c) => {
 
     if (fingerprint) {
       await db.prepare(
-        `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, total_commits, ai_commits, deps_count, has_tests, total_lines, languages, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '{}', datetime('now'))
+        `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, total_commits, ai_commits, deps_count, has_tests, total_lines, languages, scan_source, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '{}', 'web_github', datetime('now'))
          ON CONFLICT(repo_fingerprint) DO UPDATE SET
            ai_ratio = excluded.ai_ratio,
            ai_tool = excluded.ai_tool,
@@ -347,12 +492,13 @@ app.post('/api/scan', async (c) => {
            roast = excluded.roast,
            total_commits = excluded.total_commits,
            ai_commits = excluded.ai_commits,
+           scan_source = 'web_github',
            updated_at = datetime('now')`
       ).bind(id, fingerprint, githubUsername, repoName, aiRatio, primaryTool, points, grade, roast, totalCommits, aiCommits).run()
     } else {
       await db.prepare(
-        `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, total_commits, ai_commits)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO reports (id, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, total_commits, ai_commits, scan_source)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'web_github')`
       ).bind(id, githubUsername, repoName, aiRatio, primaryTool, points, grade, roast, totalCommits, aiCommits).run()
     }
 
@@ -397,6 +543,7 @@ app.post('/api/scan', async (c) => {
       grade,
       roast,
       chaos_badges: chaosBadges,
+      scan_source: 'web_github',
       url: `https://vibereport.dev/r/${reportId}`,
     })
   } catch (err: any) {
