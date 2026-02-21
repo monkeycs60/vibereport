@@ -120,8 +120,8 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 - **Install (Windows)**: `irm https://vibereport.dev/install.ps1 | iex`
 - **Install (cargo)**: `cargo install vibereport`
 - **GitHub Releases**: tag `vX.Y.Z` triggers `.github/workflows/release.yml` → builds 4 targets (linux-x64, macos-x64, macos-arm64, windows-x64) → uploads `.tar.gz`/`.zip` to release
-- **crates.io**: `cargo publish -p vibereport` (vps-worker has `publish = false`)
-- **Release flow**: bump version in Cargo.toml → commit → `git tag -a vX.Y.Z -m "vX.Y.Z"` → `git push origin vX.Y.Z` → wait for CI → `cargo publish -p vibereport`
+- **crates.io**: auto-published by CI after release (vps-worker has `publish = false`, secret: `CARGO_REGISTRY_TOKEN`)
+- **Release flow**: bump version in Cargo.toml → commit → `git tag -a vX.Y.Z -m "vX.Y.Z"` → `git push origin vX.Y.Z` → CI builds binaries + creates release + publishes to crates.io
 
 ## Key Design Decisions
 - Share by default (--no-share to opt out) for maximum leaderboard participation
