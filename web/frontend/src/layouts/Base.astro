@@ -10,11 +10,13 @@ const {
   description = 'Analyze any git repo and discover how much was AI-generated. Get your vibe score, grade, and a brutally honest roast.',
   ogImage = '/og-default.png',
 } = Astro.props;
+import Analytics from '@vercel/analytics/astro';
 ---
 
 <!doctype html>
 <html lang="en" class="dark">
   <head>
+    <Analytics />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
