@@ -14,6 +14,11 @@ CREATE TABLE IF NOT EXISTS reports (
   ai_commits INTEGER DEFAULT 0,
   total_lines INTEGER DEFAULT 0,
   languages TEXT DEFAULT '{}',
+  vibe_score INTEGER DEFAULT 0,
+  chaos_badges TEXT DEFAULT '[]',
+  scan_source TEXT DEFAULT 'cli',
+  period_start TEXT,
+  period_end TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
