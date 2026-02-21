@@ -33,3 +33,29 @@ CREATE TABLE IF NOT EXISTS scan_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_scan_history_date ON scan_history(scanned_at);
+
+-- GitHub AI Index tables
+CREATE TABLE IF NOT EXISTS index_panel (
+  repo_slug TEXT NOT NULL,
+  quarter TEXT NOT NULL,
+  panel_source TEXT,
+  stars INTEGER DEFAULT 0,
+  PRIMARY KEY (repo_slug, quarter)
+);
+
+CREATE TABLE IF NOT EXISTS index_scans (
+  repo_slug TEXT NOT NULL,
+  scan_date TEXT NOT NULL,
+  total_commits INTEGER DEFAULT 0,
+  ai_commits INTEGER DEFAULT 0,
+  PRIMARY KEY (repo_slug, scan_date)
+);
+
+CREATE TABLE IF NOT EXISTS index_snapshots (
+  snapshot_date TEXT PRIMARY KEY,
+  quarter TEXT,
+  total_repos INTEGER DEFAULT 0,
+  total_commits INTEGER DEFAULT 0,
+  total_ai_commits INTEGER DEFAULT 0,
+  ai_percent REAL DEFAULT 0
+);
