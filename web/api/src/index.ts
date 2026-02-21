@@ -24,7 +24,7 @@ app.use('/*', cors({
     return 'https://vibereport.dev'
   },
   allowMethods: ['GET', 'POST', 'OPTIONS'],
-  allowHeaders: ['Content-Type'],
+  allowHeaders: ['Content-Type', 'Authorization'],
 }))
 
 // Global error handler
@@ -37,6 +37,12 @@ function generateId(): string {
   const bytes = new Uint8Array(12)
   crypto.getRandomValues(bytes)
   return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function getCurrentQuarter(): string {
+  const now = new Date()
+  const q = Math.ceil((now.getMonth() + 1) / 3)
+  return `${now.getFullYear()}-Q${q}`
 }
 
 // ── GitHub commit analysis with parallel fetching ──
@@ -729,7 +735,109 @@ app.get('/api/badge/:id.svg', async (c) => {
   })
 })
 
+// ── GET /api/index-panel — Repo list for current quarter ──
+app.get('/api/index-panel', async (c) => {
+  const quarter = c.req.query('quarter') || getCurrentQuarter()
+  const result = await c.env.DB.prepare(
+    `SELECT repo_slug, panel_source, stars FROM index_panel WHERE quarter = ? ORDER BY stars DESC`
+  ).bind(quarter).all()
+  return c.json({ quarter, repos: result.results })
+})
+
+// ── POST /api/index-results — VPS pushes scan results (auth required) ──
+app.post('/api/index-results', async (c) => {
+  // Auth check
+  const auth = c.req.header('authorization') || ''
+  if (auth !== `Bearer ${c.env.VPS_AUTH_TOKEN}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  let body: { scan_date: string; results: Array<{ repo_slug: string; total_commits: number; ai_commits: number }> }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  const db = c.env.DB
+  const scanDate = body.scan_date
+
+  // Insert individual scan results
+  let totalRepos = 0
+  let totalCommits = 0
+  let totalAiCommits = 0
+
+  for (const r of body.results) {
+    await db.prepare(
+      `INSERT INTO index_scans (repo_slug, scan_date, total_commits, ai_commits)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(repo_slug, scan_date) DO UPDATE SET
+         total_commits = excluded.total_commits,
+         ai_commits = excluded.ai_commits`
+    ).bind(r.repo_slug, scanDate, r.total_commits, r.ai_commits).run()
+    totalRepos++
+    totalCommits += r.total_commits
+    totalAiCommits += r.ai_commits
+  }
+
+  // Compute and store snapshot
+  const aiPercent = totalCommits > 0 ? (totalAiCommits / totalCommits) * 100 : 0
+  const quarter = getCurrentQuarter()
+
+  await db.prepare(
+    `INSERT INTO index_snapshots (snapshot_date, quarter, total_repos, total_commits, total_ai_commits, ai_percent)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(snapshot_date) DO UPDATE SET
+       total_repos = excluded.total_repos,
+       total_commits = excluded.total_commits,
+       total_ai_commits = excluded.total_ai_commits,
+       ai_percent = excluded.ai_percent`
+  ).bind(scanDate, quarter, totalRepos, totalCommits, totalAiCommits, Math.round(aiPercent * 100) / 100).run()
+
+  return c.json({ ok: true, snapshot: { scanDate, totalRepos, totalCommits, totalAiCommits, aiPercent: Math.round(aiPercent * 100) / 100 } })
+})
+
+// ── GET /api/index-latest — Latest index snapshot for frontend ──
+app.get('/api/index-latest', async (c) => {
+  const row = await c.env.DB.prepare(
+    `SELECT * FROM index_snapshots ORDER BY snapshot_date DESC LIMIT 1`
+  ).first()
+  if (!row) {
+    return c.json({ snapshot_date: null, total_repos: 0, total_commits: 0, total_ai_commits: 0, ai_percent: 0 })
+  }
+  return c.json(row)
+})
+
+// ── GET /api/index-trend — Index snapshots over time ──
+app.get('/api/index-trend', async (c) => {
+  const result = await c.env.DB.prepare(
+    `SELECT snapshot_date, total_repos, total_commits, total_ai_commits, ai_percent
+     FROM index_snapshots
+     ORDER BY snapshot_date ASC`
+  ).all()
+  return c.json({ snapshots: result.results })
+})
+
 // ── Health check ──
 app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
-export default app
+// Export with scheduled handler for cron trigger
+export default {
+  fetch: app.fetch,
+  async scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionContext) {
+    // Trigger VPS index scan
+    if (!env.VPS_SCAN_URL || !env.VPS_AUTH_TOKEN) return
+    try {
+      await fetch(`${env.VPS_SCAN_URL}/index-scan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.VPS_AUTH_TOKEN}`,
+        },
+        body: JSON.stringify({ api_url: 'https://vibereport-api.clement-serizay.workers.dev' }),
+      })
+    } catch (err: any) {
+      console.error('Cron trigger failed:', err.message)
+    }
+  },
+}
