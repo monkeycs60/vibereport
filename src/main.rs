@@ -75,7 +75,7 @@ fn run_single(cli: &Cli, path: &Path) {
     };
 
     // ── Step 2: Analyze project structure ──
-    let project_stats = project::analyze_project(path);
+    let project_stats = project::analyze_project_with_ai_ratio(path, git_stats.ai_ratio);
 
     // ── Step 3: Calculate vibe score ──
     let vibe_score = score::calculator::calculate(&git_stats, &project_stats);
@@ -113,7 +113,7 @@ fn run_remote(cli: &Cli, user: &str, repo: &str) {
             std::process::exit(1);
         }
     };
-    let project_stats = project::analyze_project(&tmp_path);
+    let project_stats = project::analyze_project_with_ai_ratio(&tmp_path, git_stats.ai_ratio);
     let vibe_score = score::calculator::calculate(&git_stats, &project_stats);
 
     // Output + export
@@ -170,6 +170,18 @@ fn output_report(
             "total_lines": project_stats.languages.total_lines,
             "security": {
                 "env_in_git": project_stats.security.env_in_git,
+            },
+            "vibe": {
+                "no_linting": project_stats.vibe.no_linting,
+                "no_ci_cd": project_stats.vibe.no_ci_cd,
+                "boomer_ai": project_stats.vibe.boomer_ai,
+                "node_modules_in_git": project_stats.vibe.node_modules_in_git,
+                "no_gitignore": project_stats.vibe.no_gitignore,
+                "no_readme": project_stats.vibe.no_readme,
+                "todo_flood": project_stats.vibe.todo_flood,
+                "todo_count": project_stats.vibe.todo_count,
+                "single_branch": project_stats.vibe.single_branch,
+                "mega_commit": project_stats.vibe.mega_commit,
             },
         });
 

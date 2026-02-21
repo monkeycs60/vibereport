@@ -99,6 +99,7 @@ mod tests {
                     total_lines,
                 },
                 security: crate::project::security::SecurityInfo::default(),
+                vibe: crate::project::vibe_detect::VibeInfo::default(),
             },
             score: VibeScore {
                 grade: "B".to_string(),

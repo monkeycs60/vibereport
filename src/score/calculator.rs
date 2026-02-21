@@ -114,6 +114,7 @@ mod tests {
                 total_lines: 5000,
             },
             security: crate::project::security::SecurityInfo::default(),
+            vibe: crate::project::vibe_detect::VibeInfo::default(),
         }
     }
 
