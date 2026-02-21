@@ -1,26 +1,17 @@
 ---
 import Base from '../layouts/Base.astro';
-import StatsCounter from '../components/StatsCounter.astro';
 import LeaderboardTable from '../components/LeaderboardTable.astro';
 import TrendChart from '../components/TrendChart.astro';
 import BattleChart from '../components/BattleChart.astro';
-import { fetchStats, fetchLeaderboard, fetchTrends, fetchIndexLatest, fetchIndexTrend } from '../lib/api';
+import { fetchLeaderboard, fetchIndexLatest, fetchIndexTrend } from '../lib/api';
 
-let stats = { total_reports: 0, total_commits: 0, total_ai_commits: 0 };
 let leaderboard = { entries: [], total: 0, page: 1, limit: 5 };
-let trends = { period: '1y', trends: [] as Array<{ month: string; avg_ai_ratio: number; total_scans: number; avg_score: number; total_commits: number; ai_commits: number }> };
 let indexLatest = { snapshot_date: null as string | null, quarter: '', total_repos: 0, total_commits: 0, total_ai_commits: 0, ai_percent: 0 };
 let indexTrend = { snapshots: [] as Array<{ snapshot_date: string; total_repos: number; total_commits: number; total_ai_commits: number; ai_percent: number }> };
 
-try { stats = await fetchStats(); } catch {}
 try { leaderboard = await fetchLeaderboard(1, 5); } catch {}
-try { trends = await fetchTrends(); } catch {}
 try { indexLatest = await fetchIndexLatest(); } catch {}
 try { indexTrend = await fetchIndexTrend(); } catch {}
-
-// Community data (from trends)
-const communityAiCommits = trends.trends.reduce((s, t) => s + (t.ai_commits || 0), 0);
-const communityHumanCommits = trends.trends.reduce((s, t) => s + ((t.total_commits || 0) - (t.ai_commits || 0)), 0);
 
 // Index data
 const indexAiCommits = indexLatest.total_ai_commits || 0;
@@ -90,24 +81,6 @@ const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
     </div>
   </section>
 
-  <!-- Stats -->
-  <section class="py-16 border-y border-tokyo-border/20">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 sm:gap-12 max-w-2xl mx-auto">
-        <StatsCounter
-          label="Repos scanned"
-          value={stats.total_reports}
-          emoji="\u{1F4CA}"
-        />
-        <StatsCounter
-          label="Commits analyzed"
-          value={stats.total_commits}
-          emoji="\u{26A1}"
-        />
-      </div>
-    </div>
-  </section>
-
   <!-- Battle Chart -->
   <section class="py-16">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -115,13 +88,10 @@ const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
         AI vs Humans
       </h2>
       <BattleChart
-        indexAiCommits={indexAiCommits}
-        indexHumanCommits={indexHumanCommits}
-        indexTotalRepos={indexLatest.total_repos}
-        indexSnapshotDate={indexLatest.snapshot_date}
-        communityAiCommits={communityAiCommits}
-        communityHumanCommits={communityHumanCommits}
-        communityTotalRepos={stats.total_reports}
+        aiCommits={indexAiCommits}
+        humanCommits={indexHumanCommits}
+        totalRepos={indexLatest.total_repos}
+        snapshotDate={indexLatest.snapshot_date}
       />
     </div>
   </section>
@@ -132,56 +102,11 @@ const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
       <h2 class="text-2xl font-bold text-center text-tokyo-text mb-8">
         The rise of vibe coding
       </h2>
-      {indexTrend.snapshots.length >= 2 ? (
-        <TrendChart trends={indexTrend.snapshots.map(s => ({
-          month: s.snapshot_date,
-          avg_ai_ratio: s.ai_percent / 100,
-          total_scans: s.total_repos,
-          total_commits: s.total_commits,
-          ai_commits: s.total_ai_commits,
-        }))} />
-      ) : (
-        <TrendChart trends={trends.trends} />
-      )}
+      <TrendChart snapshots={indexTrend.snapshots} />
       <div class="text-center mt-4">
-        <a
-          href="/trends"
-          class="text-sm text-tokyo-cyan hover:text-tokyo-cyan/80 transition-colors"
-        >
+        <a href="/trends" class="text-sm text-tokyo-cyan hover:text-tokyo-cyan/80 transition-colors">
           View full trends &rarr;
         </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- How it works -->
-  <section class="py-16">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <h2 class="text-2xl font-bold text-center text-tokyo-text mb-12">
-        How it works
-      </h2>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div class="text-center p-6 rounded-xl bg-tokyo-surface/30 border border-tokyo-border/20">
-          <div class="text-3xl mb-3">{'\u{1F50D}'}</div>
-          <h3 class="font-semibold text-tokyo-text mb-2">Scan</h3>
-          <p class="text-xs text-tokyo-dimmed leading-relaxed">
-            Point vibereport at any git repo. Local, remote, or via GitHub URL.
-          </p>
-        </div>
-        <div class="text-center p-6 rounded-xl bg-tokyo-surface/30 border border-tokyo-border/20">
-          <div class="text-3xl mb-3">{'\u{1F9E0}'}</div>
-          <h3 class="font-semibold text-tokyo-text mb-2">Analyze</h3>
-          <p class="text-xs text-tokyo-dimmed leading-relaxed">
-            AI detection scans commit patterns, messages, and metadata to find generated code.
-          </p>
-        </div>
-        <div class="text-center p-6 rounded-xl bg-tokyo-surface/30 border border-tokyo-border/20">
-          <div class="text-3xl mb-3">{'\u{1F525}'}</div>
-          <h3 class="font-semibold text-tokyo-text mb-2">Roast</h3>
-          <p class="text-xs text-tokyo-dimmed leading-relaxed">
-            Get your vibe score, letter grade, and a brutally honest roast of your codebase.
-          </p>
-        </div>
       </div>
     </div>
   </section>
