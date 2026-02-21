@@ -44,24 +44,21 @@ const apiUrl = getApiUrl();
     <div id="report-card" class="hidden rounded-2xl border border-tokyo-border/30 bg-tokyo-surface/50 backdrop-blur-sm overflow-hidden glow">
       <!-- Header -->
       <div class="px-6 sm:px-8 pt-8 pb-6 border-b border-tokyo-border/20">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <p class="text-xs text-tokyo-dimmed uppercase tracking-wider mb-1">Vibe Report</p>
-            <h1 id="rpt-name" class="text-xl sm:text-2xl font-bold text-tokyo-text"></h1>
-            <p id="rpt-meta" class="text-xs text-tokyo-dimmed mt-1"></p>
-          </div>
-          <div id="rpt-grade-badge" class="flex-shrink-0 w-20 h-20 flex items-center justify-center rounded-2xl border-2 text-4xl font-bold"></div>
-        </div>
+        <p class="text-xs text-tokyo-dimmed uppercase tracking-wider mb-1">Vibe Report</p>
+        <h1 id="rpt-name" class="text-xl sm:text-2xl font-bold text-tokyo-text"></h1>
+        <p id="rpt-meta" class="text-xs text-tokyo-dimmed mt-1"></p>
       </div>
 
       <!-- Body -->
       <div class="px-6 sm:px-8 py-6 space-y-6">
-        <!-- AI ratio -->
+        <!-- AI% hero -->
+        <div class="text-center mb-6">
+          <div id="rpt-ai-pct-label" class="text-5xl font-bold text-[#f7768e]"></div>
+          <p class="text-sm text-tokyo-dimmed mt-1">AI-generated commits</p>
+        </div>
+
+        <!-- AI ratio bar -->
         <div>
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm text-tokyo-text font-medium">AI-Generated Code</span>
-            <span id="rpt-ai-pct-label" class="text-sm font-bold text-tokyo-yellow"></span>
-          </div>
           <div class="h-4 bg-tokyo-bg rounded-full overflow-hidden">
             <div id="rpt-ai-bar" class="h-full rounded-full transition-all duration-1000 ease-out" style="width: 0%; background: linear-gradient(90deg, #f7768e, #e0af68);"></div>
           </div>
@@ -72,19 +69,17 @@ const apiUrl = getApiUrl();
           <p id="rpt-total-commits" class="text-xs text-tokyo-dimmed mt-1"></p>
         </div>
 
-        <!-- Score -->
-        <div class="flex items-center gap-4">
-          <div class="flex-1">
+        <!-- Vibe Score + Grade (secondary, side by side) -->
+        <div class="flex items-center justify-center gap-6 p-4 rounded-xl bg-tokyo-bg/40 border border-tokyo-border/20 mb-6">
+          <div class="text-center">
             <p class="text-xs text-tokyo-dimmed mb-1">Vibe Score</p>
-            <div class="flex items-baseline gap-1">
-              <span id="rpt-score" class="text-3xl font-bold"></span>
-              <span class="text-sm text-tokyo-dimmed">/100</span>
-            </div>
+            <span id="rpt-score" class="text-2xl font-bold"></span>
+            <span class="text-sm text-tokyo-dimmed">/100</span>
           </div>
-          <div class="h-12 w-px bg-tokyo-border/30"></div>
-          <div class="flex-1">
+          <div class="h-10 w-px bg-tokyo-border/30"></div>
+          <div class="text-center">
             <p class="text-xs text-tokyo-dimmed mb-1">Grade</p>
-            <span id="rpt-grade-text" class="text-3xl font-bold"></span>
+            <span id="rpt-grade-text" class="text-2xl font-bold"></span>
           </div>
         </div>
 
@@ -165,25 +160,17 @@ const apiUrl = getApiUrl();
       const report = await res.json();
 
       const aiPct = Math.round((report.ai_ratio || 0) * 100);
-      const humanPct = 100 - aiPct;
       const color = getGradeColor(report.grade);
-      const bg = `${color}33`;
-      const border = `${color}66`;
 
       // Header
       document.getElementById('rpt-name').textContent = report.repo_name;
       document.getElementById('rpt-meta').textContent =
         `${report.total_commits} commits | ${new Date(report.created_at).toLocaleDateString()}`;
 
-      // Grade badge
-      const badge = document.getElementById('rpt-grade-badge');
-      badge.textContent = report.grade;
-      badge.style.color = color;
-      badge.style.backgroundColor = bg;
-      badge.style.borderColor = border;
-
-      // AI ratio
+      // AI% hero
       document.getElementById('rpt-ai-pct-label').textContent = `${aiPct}%`;
+
+      // AI ratio bar
       setTimeout(() => {
         document.getElementById('rpt-ai-bar').style.width = `${aiPct}%`;
       }, 100);
@@ -194,7 +181,7 @@ const apiUrl = getApiUrl();
       document.getElementById('rpt-total-commits').textContent =
         `${(report.total_commits || 0).toLocaleString()} commits analyzed`;
 
-      // Score + grade
+      // Score + grade (secondary)
       const scoreEl = document.getElementById('rpt-score');
       scoreEl.textContent = report.score;
       scoreEl.style.color = color;
