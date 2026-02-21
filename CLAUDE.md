@@ -77,14 +77,28 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 - **Deploy VPS**: ssh ubuntu@vps-139a77b3.vps.ovh.net, cd ~/vibereport, git pull, cargo build --release, sudo systemctl restart vibereport-worker
 
 ## VPS Scan Worker
-- POST /scan endpoint on port 3001, exposed via Cloudflare Tunnel at https://scan.vibereport.dev
+- POST /scan — user web scans (semaphore: 2 concurrent)
+- POST /index-scan — daily index cron scan (semaphore: 3 concurrent, fire-and-forget via tokio::spawn)
+- Port 3001, exposed via Cloudflare Tunnel at https://scan.vibereport.dev
 - Named tunnel: `vibereport-scan` (ID: 1c244fbe-83cf-4435-aadb-b5fb09f7c9cd)
 - Auth: `Authorization: Bearer {VPS_AUTH_TOKEN}`
 - Clones repos with `git clone --bare --shallow-since`, runs `vibereport --json`
-- Concurrency: semaphore (5 concurrent clones)
+- Clone timeout: 120s, analysis timeout: 60s (prevents massive repos from blocking slots)
 - systemd services: vibereport-worker (Axum) + cloudflared-tunnel (Cloudflare Tunnel)
 - CF Worker proxies to VPS first, falls back to GitHub API if VPS is down
 - Config: ~/.cloudflared/config.yml on VPS
+
+## GitHub AI Index
+- 1000 repos selected per quarter (600 by stars + 600 by activity, deduped, cut to 1000)
+- Panel stored in `index_panel` table, fixed per quarter for trend comparability
+- Panel generation: `scripts/generate-panel.sh` (uses GitHub Search API, ~12 requests)
+- Daily cron at 3h UTC: CF Worker triggers VPS → VPS scans all panel repos → POSTs results back
+- Results stored in `index_scans` (per-repo) and `index_snapshots` (daily aggregates)
+- D1 tables: `index_panel`, `index_scans`, `index_snapshots`
+- API endpoints: GET /api/index-panel, POST /api/index-results, GET /api/index-latest, GET /api/index-trend
+- Frontend: BattleChart toggle between "GitHub Index" and "Community" views
+- Index and Community data pools are completely independent — no cross-contamination
+- Design doc: docs/plans/2026-02-21-github-ai-index-design.md
 
 ## Key Design Decisions
 - Share by default (--no-share to opt out) for maximum leaderboard participation
