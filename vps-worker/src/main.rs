@@ -49,11 +49,12 @@ async fn scan_handler(
     }
 
     // Acquire user semaphore (max 2 concurrent user scans)
-    let _permit = state
-        .user_semaphore
-        .acquire()
-        .await
-        .map_err(|_| (StatusCode::TOO_MANY_REQUESTS, "Too many concurrent scans".into()))?;
+    let _permit = state.user_semaphore.acquire().await.map_err(|_| {
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            "Too many concurrent scans".into(),
+        )
+    })?;
 
     let uuid = Uuid::new_v4().to_string();
     let tmp_dir = format!("/tmp/vibereport-{}", uuid);
@@ -140,15 +141,16 @@ async fn scan_handler(
         // FIX 5: Log stderr, return generic message
         let stderr = String::from_utf8_lossy(&analyze_result.stderr);
         eprintln!("Analysis failed for {}: {}", repo_url, stderr);
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Analysis failed".into(),
-        ));
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "Analysis failed".into()));
     }
 
     let stdout = String::from_utf8_lossy(&analyze_result.stdout);
-    let data: serde_json::Value = serde_json::from_str(&stdout)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Parse error: {}", e)))?;
+    let data: serde_json::Value = serde_json::from_str(&stdout).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Parse error: {}", e),
+        )
+    })?;
 
     Ok(Json(data))
 }
@@ -221,11 +223,7 @@ async fn index_scan_handler(
     }
 
     let repo_count = repos.len();
-    tracing::info!(
-        "Index scan starting: {} repos for {}",
-        repo_count,
-        quarter
-    );
+    tracing::info!("Index scan starting: {} repos for {}", repo_count, quarter);
 
     // Fire-and-forget: spawn background task, return immediately
     // (Cloudflare Tunnel has ~100s timeout, scan takes ~30min)
@@ -368,12 +366,10 @@ async fn main() {
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3001".into());
     let auth_token = std::env::var("AUTH_TOKEN").expect("AUTH_TOKEN required");
-    let vibereport_bin =
-        std::env::var("VIBEREPORT_BIN").unwrap_or_else(|_| "vibereport".into());
+    let vibereport_bin = std::env::var("VIBEREPORT_BIN").unwrap_or_else(|_| "vibereport".into());
     // FIX 2: Read API_URL from environment
-    let api_url = std::env::var("API_URL").unwrap_or_else(|_| {
-        "https://vibereport-api.clement-serizay.workers.dev".into()
-    });
+    let api_url = std::env::var("API_URL")
+        .unwrap_or_else(|_| "https://vibereport-api.clement-serizay.workers.dev".into());
 
     let state = Arc::new(AppState {
         user_semaphore: Semaphore::new(2),
