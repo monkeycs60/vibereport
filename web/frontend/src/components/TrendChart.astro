@@ -1,15 +1,14 @@
 ---
 interface Props {
-  trends: Array<{
-    month: string;
-    avg_ai_ratio: number;
-    total_scans: number;
-    total_commits?: number;
-    ai_commits?: number;
+  snapshots: Array<{
+    snapshot_date: string;
+    total_commits: number;
+    total_ai_commits: number;
+    ai_percent: number;
   }>;
 }
 
-const { trends } = Astro.props;
+const { snapshots } = Astro.props;
 
 // Chart dimensions
 const viewW = 800;
@@ -22,30 +21,40 @@ const chartW = chartRight - chartLeft;
 const chartH = chartBottom - chartTop;
 
 // Map data to coordinates
-const points = trends.map((t, i) => {
-  const x = trends.length === 1
+const points = snapshots.map((s, i) => {
+  const x = snapshots.length === 1
     ? chartLeft + chartW / 2
-    : chartLeft + (i / (trends.length - 1)) * chartW;
-  const ratio = Math.min(Math.max(t.avg_ai_ratio, 0), 1);
-  const y = chartBottom - ratio * chartH;
-  return { x, y, ratio, month: t.month, scans: t.total_scans };
+    : chartLeft + (i / (snapshots.length - 1)) * chartW;
+  const aiPct = Math.min(Math.max(s.ai_percent, 0), 100);
+  const yAi = chartBottom - (aiPct / 100) * chartH;
+  return { x, yAi, aiPct, date: s.snapshot_date };
 });
 
-// Build SVG paths (only when we have enough data)
-const linePath = points.length >= 2
-  ? points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-  : '';
-const areaPath = points.length >= 2
-  ? linePath + ` L${points[points.length - 1].x.toFixed(1)},${chartBottom} L${points[0].x.toFixed(1)},${chartBottom} Z`
-  : '';
+// Build SVG paths for stacked areas (only with 2+ points)
+let aiAreaPath = '';
+let humanAreaPath = '';
+let aiLinePath = '';
 
-// Format month label: "2025-06" -> "Jun 25"
+if (points.length >= 2) {
+  // AI area: bottom to AI% line
+  const forwardAi = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.yAi.toFixed(1)}`).join(' ');
+  aiAreaPath = `${forwardAi} L${points[points.length - 1].x.toFixed(1)},${chartBottom} L${points[0].x.toFixed(1)},${chartBottom} Z`;
+
+  // Human area: AI% line up to top (0% = chartTop, 100% = chartBottom)
+  const forwardHuman = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.yAi.toFixed(1)}`).join(' ');
+  humanAreaPath = `${forwardHuman} L${points[points.length - 1].x.toFixed(1)},${chartTop} L${points[0].x.toFixed(1)},${chartTop} Z`;
+
+  // AI boundary line
+  aiLinePath = forwardAi;
+}
+
+// Format date: "2026-02-21" -> "Feb 21"
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function formatMonth(m: string): string {
-  const parts = m.split('-');
+function formatDate(d: string): string {
+  const parts = d.split('-');
   const monthIdx = parseInt(parts[1], 10) - 1;
-  const yearShort = parts[0].slice(2);
-  return `${monthNames[monthIdx]} ${yearShort}`;
+  const day = parseInt(parts[2], 10);
+  return `${monthNames[monthIdx]} ${day}`;
 }
 
 // Y-axis labels
@@ -53,13 +62,16 @@ const yLabels = [0, 25, 50, 75, 100];
 ---
 
 <div class="w-full overflow-hidden rounded-xl border border-tokyo-border/30 bg-tokyo-surface/30 p-4">
-  <h3 class="text-sm font-semibold text-tokyo-text mb-4">AI Adoption Trend</h3>
-  {trends.length >= 1 ? (
+  {snapshots.length >= 2 ? (
     <svg viewBox={`0 0 ${viewW} ${viewH}`} class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#7aa2f7" stop-opacity="0.3" />
-          <stop offset="100%" stop-color="#7aa2f7" stop-opacity="0.02" />
+        <linearGradient id="aiAreaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#f7768e" stop-opacity="0.4" />
+          <stop offset="100%" stop-color="#f7768e" stop-opacity="0.05" />
+        </linearGradient>
+        <linearGradient id="humanAreaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#7aa2f7" stop-opacity="0.05" />
+          <stop offset="100%" stop-color="#7aa2f7" stop-opacity="0.3" />
         </linearGradient>
       </defs>
 
@@ -96,44 +108,24 @@ const yLabels = [0, 25, 50, 75, 100];
         );
       })}
 
-      {/* Area fill */}
-      {areaPath && <path d={areaPath} fill="url(#areaGradient)" />}
+      {/* Human area (top — blue) */}
+      <path d={humanAreaPath} fill="url(#humanAreaGrad)" />
 
-      {/* Line */}
-      {linePath && <path d={linePath} fill="none" stroke="#7aa2f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />}
+      {/* AI area (bottom — red/pink) */}
+      <path d={aiAreaPath} fill="url(#aiAreaGrad)" />
 
-      {/* Data points */}
+      {/* AI boundary line */}
+      <path d={aiLinePath} fill="none" stroke="#f7768e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+
+      {/* Data point circles */}
       {points.map((p) => (
-        <circle cx={p.x} cy={p.y} r="3.5" fill="#1a1b26" stroke="#7aa2f7" stroke-width="2" />
+        <circle cx={p.x} cy={p.yAi} r="3.5" fill="#1a1b26" stroke="#f7768e" stroke-width="2" />
       ))}
 
-      {/* Single-point label */}
-      {points.length === 1 && (
-        <text
-          x={points[0].x}
-          y={points[0].y - 12}
-          text-anchor="middle"
-          fill="#7aa2f7"
-          font-size="12"
-          font-weight="bold"
-          font-family="JetBrains Mono, monospace"
-        >
-          {Math.round(points[0].ratio * 100)}% AI
-        </text>
-      )}
-
-      {/* Hover targets with tooltips */}
-      {points.map((p) => (
-        <g class="trend-point" data-ratio={Math.round(p.ratio * 100)} data-month={p.month} data-scans={p.scans}>
-          <circle cx={p.x} cy={p.y} r="12" fill="transparent" class="cursor-pointer" />
-        </g>
-      ))}
-
-      {/* Month labels */}
+      {/* X-axis date labels */}
       {points.map((p, i) => {
-        // Show fewer labels if many points to avoid overlap
-        const showEvery = trends.length > 12 ? 3 : trends.length > 6 ? 2 : 1;
-        if (i % showEvery !== 0 && i !== trends.length - 1) return null;
+        const showEvery = snapshots.length > 14 ? 3 : snapshots.length > 7 ? 2 : 1;
+        if (i % showEvery !== 0 && i !== snapshots.length - 1) return null;
         return (
           <text
             x={p.x}
@@ -143,18 +135,83 @@ const yLabels = [0, 25, 50, 75, 100];
             font-size="9"
             font-family="JetBrains Mono, monospace"
           >
-            {formatMonth(p.month)}
+            {formatDate(p.date)}
           </text>
         );
       })}
+
+      {/* Area labels */}
+      <text
+        x={chartLeft + 10}
+        y={chartTop + 18}
+        fill="#7aa2f7"
+        font-size="10"
+        font-family="JetBrains Mono, monospace"
+        opacity="0.7"
+      >
+        Human
+      </text>
+      <text
+        x={chartLeft + 10}
+        y={chartBottom - 8}
+        fill="#f7768e"
+        font-size="10"
+        font-family="JetBrains Mono, monospace"
+        opacity="0.7"
+      >
+        AI
+      </text>
+    </svg>
+  ) : snapshots.length === 1 ? (
+    <svg viewBox={`0 0 ${viewW} ${viewH}`} class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
+      {/* Grid lines */}
+      {yLabels.map((pct) => {
+        const y = chartBottom - (pct / 100) * chartH;
+        return (
+          <line
+            x1={chartLeft}
+            y1={y}
+            x2={chartRight}
+            y2={y}
+            stroke="#3b4261"
+            stroke-width="0.5"
+            stroke-dasharray={pct === 0 ? 'none' : '4,4'}
+          />
+        );
+      })}
+
+      {/* Y-axis labels */}
+      {yLabels.map((pct) => {
+        const y = chartBottom - (pct / 100) * chartH;
+        return (
+          <text
+            x={chartLeft - 8}
+            y={y + 4}
+            text-anchor="end"
+            fill="#565f89"
+            font-size="10"
+            font-family="JetBrains Mono, monospace"
+          >
+            {pct}%
+          </text>
+        );
+      })}
+
+      {/* Single data point */}
+      <circle cx={points[0].x} cy={points[0].yAi} r="5" fill="#1a1b26" stroke="#f7768e" stroke-width="2.5" />
+      <text
+        x={points[0].x}
+        y={points[0].yAi - 16}
+        text-anchor="middle"
+        fill="#f7768e"
+        font-size="13"
+        font-weight="bold"
+        font-family="JetBrains Mono, monospace"
+      >
+        {points[0].aiPct.toFixed(1)}% AI — Day 1
+      </text>
     </svg>
   ) : (
-    <p class="text-tokyo-dimmed text-sm text-center py-8">No data yet. Scan a repo to get started!</p>
+    <p class="text-tokyo-dimmed text-sm text-center py-8 font-mono">Day 1 of tracking</p>
   )}
 </div>
-
-<style>
-  .trend-point:hover circle {
-    fill: rgba(122, 162, 247, 0.1);
-  }
-</style>
