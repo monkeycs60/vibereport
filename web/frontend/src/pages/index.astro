@@ -4,26 +4,27 @@ import StatsCounter from '../components/StatsCounter.astro';
 import LeaderboardTable from '../components/LeaderboardTable.astro';
 import TrendChart from '../components/TrendChart.astro';
 import BattleChart from '../components/BattleChart.astro';
-import { fetchStats, fetchLeaderboard, fetchTrends } from '../lib/api';
+import { fetchStats, fetchLeaderboard, fetchTrends, fetchIndexLatest, fetchIndexTrend } from '../lib/api';
 
 let stats = { total_reports: 0, total_commits: 0, total_ai_commits: 0 };
 let leaderboard = { entries: [], total: 0, page: 1, limit: 5 };
 let trends = { period: '1y', trends: [] as Array<{ month: string; avg_ai_ratio: number; total_scans: number; avg_score: number; total_commits: number; ai_commits: number }> };
+let indexLatest = { snapshot_date: null as string | null, quarter: '', total_repos: 0, total_commits: 0, total_ai_commits: 0, ai_percent: 0 };
+let indexTrend = { snapshots: [] as Array<{ snapshot_date: string; total_repos: number; total_commits: number; total_ai_commits: number; ai_percent: number }> };
 
-try {
-  stats = await fetchStats();
-} catch {}
+try { stats = await fetchStats(); } catch {}
+try { leaderboard = await fetchLeaderboard(1, 5); } catch {}
+try { trends = await fetchTrends(); } catch {}
+try { indexLatest = await fetchIndexLatest(); } catch {}
+try { indexTrend = await fetchIndexTrend(); } catch {}
 
-try {
-  leaderboard = await fetchLeaderboard(1, 5);
-} catch {}
+// Community data (from trends)
+const communityAiCommits = trends.trends.reduce((s, t) => s + (t.ai_commits || 0), 0);
+const communityHumanCommits = trends.trends.reduce((s, t) => s + ((t.total_commits || 0) - (t.ai_commits || 0)), 0);
 
-try {
-  trends = await fetchTrends();
-} catch {}
-
-const totalAiCommits = trends.trends.reduce((s, t) => s + (t.ai_commits || 0), 0);
-const totalHumanCommits = trends.trends.reduce((s, t) => s + ((t.total_commits || 0) - (t.ai_commits || 0)), 0);
+// Index data
+const indexAiCommits = indexLatest.total_ai_commits || 0;
+const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
 ---
 
 <Base>
@@ -113,7 +114,15 @@ const totalHumanCommits = trends.trends.reduce((s, t) => s + ((t.total_commits |
       <h2 class="text-2xl font-bold text-center text-tokyo-text mb-8">
         AI vs Humans
       </h2>
-      <BattleChart totalAiCommits={totalAiCommits} totalHumanCommits={totalHumanCommits} />
+      <BattleChart
+        indexAiCommits={indexAiCommits}
+        indexHumanCommits={indexHumanCommits}
+        indexTotalRepos={indexLatest.total_repos}
+        indexSnapshotDate={indexLatest.snapshot_date}
+        communityAiCommits={communityAiCommits}
+        communityHumanCommits={communityHumanCommits}
+        communityTotalRepos={stats.total_reports}
+      />
     </div>
   </section>
 
@@ -123,7 +132,17 @@ const totalHumanCommits = trends.trends.reduce((s, t) => s + ((t.total_commits |
       <h2 class="text-2xl font-bold text-center text-tokyo-text mb-8">
         The rise of vibe coding
       </h2>
-      <TrendChart trends={trends.trends} />
+      {indexTrend.snapshots.length >= 2 ? (
+        <TrendChart trends={indexTrend.snapshots.map(s => ({
+          month: s.snapshot_date,
+          avg_ai_ratio: s.ai_percent / 100,
+          total_scans: s.total_repos,
+          total_commits: s.total_commits,
+          ai_commits: s.total_ai_commits,
+        }))} />
+      ) : (
+        <TrendChart trends={trends.trends} />
+      )}
       <div class="text-center mt-4">
         <a
           href="/trends"

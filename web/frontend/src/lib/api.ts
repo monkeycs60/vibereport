@@ -147,6 +147,39 @@ export async function fetchReportsList(page = 1, limit = 20): Promise<ReportsLis
   }
 }
 
+export interface IndexSnapshot {
+  snapshot_date: string | null;
+  quarter: string;
+  total_repos: number;
+  total_commits: number;
+  total_ai_commits: number;
+  ai_percent: number;
+}
+
+export interface IndexTrendResponse {
+  snapshots: IndexSnapshot[];
+}
+
+export async function fetchIndexLatest(): Promise<IndexSnapshot> {
+  try {
+    const res = await fetch(`${API_URL}/api/index-latest`);
+    if (!res.ok) throw new Error('Failed to fetch index');
+    return res.json();
+  } catch {
+    return { snapshot_date: null, quarter: '', total_repos: 0, total_commits: 0, total_ai_commits: 0, ai_percent: 0 };
+  }
+}
+
+export async function fetchIndexTrend(): Promise<IndexTrendResponse> {
+  try {
+    const res = await fetch(`${API_URL}/api/index-trend`);
+    if (!res.ok) throw new Error('Failed to fetch index trend');
+    return res.json();
+  } catch {
+    return { snapshots: [] };
+  }
+}
+
 export function getApiUrl(): string {
   return API_URL;
 }
