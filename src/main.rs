@@ -34,6 +34,10 @@ struct Cli {
     /// Don't share report to vibereport.dev
     #[arg(long)]
     no_share: bool,
+
+    /// Only analyze commits since this date (YYYY-MM-DD, "6m", "1y", "2y", or "all")
+    #[arg(long, default_value = "all")]
+    since: String,
 }
 
 fn main() {
@@ -60,7 +64,8 @@ fn run_single(cli: &Cli, path: &Path) {
     eprintln!("Scanning {}...", path.display());
 
     // ── Step 1: Analyze git history ──
-    let git_stats = match git::parser::analyze_repo(path) {
+    let since = git::parser::parse_since(&cli.since);
+    let git_stats = match git::parser::analyze_repo(path, since) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Error: not a git repository ({})", path.display());
@@ -105,7 +110,8 @@ fn run_remote(cli: &Cli, user: &str, repo: &str) {
     let repo_name = format!("{}/{}", user, repo);
 
     // Run the same analysis pipeline as single-repo
-    let git_stats = match git::parser::analyze_repo(&tmp_path) {
+    let since = git::parser::parse_since(&cli.since);
+    let git_stats = match git::parser::analyze_repo(&tmp_path, since) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Error analyzing repo: {}", e);
@@ -293,7 +299,7 @@ fn run_scan_all(path: &Path) {
         eprint!("  {} ... ", name);
 
         // Analyze git history
-        let git_stats = match git::parser::analyze_repo(repo_path) {
+        let git_stats = match git::parser::analyze_repo(repo_path, None) {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("skipped ({})", e);

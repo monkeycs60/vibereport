@@ -32,8 +32,28 @@ pub struct GitStats {
     pub repo_fingerprint: Option<String>,
 }
 
+/// Parse a --since value into an optional cutoff DateTime.
+/// Accepts: "all", "6m", "1y", "2y", "YYYY-MM-DD"
+pub fn parse_since(since: &str) -> Option<DateTime<Utc>> {
+    match since.trim().to_lowercase().as_str() {
+        "all" | "" => None,
+        "6m" => Some(Utc::now() - chrono::Duration::days(180)),
+        "1y" => Some(Utc::now() - chrono::Duration::days(365)),
+        "2y" => Some(Utc::now() - chrono::Duration::days(730)),
+        date => chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+            .ok()
+            .and_then(|d| d.and_hms_opt(0, 0, 0))
+            .map(|dt| dt.and_utc()),
+    }
+}
+
 /// Walk all commits in HEAD and classify each as AI or Human.
-pub fn analyze_repo(path: &Path) -> Result<GitStats, Box<dyn std::error::Error>> {
+/// If `since` is Some, only commits at or after the cutoff are counted,
+/// but the root commit hash is still tracked for fingerprinting.
+pub fn analyze_repo(
+    path: &Path,
+    since: Option<DateTime<Utc>>,
+) -> Result<GitStats, Box<dyn std::error::Error>> {
     let repo = gix::open(path)?;
 
     let head = repo.head_commit()?;
@@ -56,6 +76,13 @@ pub fn analyze_repo(path: &Path) -> Result<GitStats, Box<dyn std::error::Error>>
         let id_str = info.id.to_string();
         // Track the full hash; last iteration = oldest (root) commit
         root_commit_full_hash = id_str.clone();
+
+        // Filter by --since if specified
+        if let Some(cutoff) = since {
+            if timestamp < cutoff {
+                continue;
+            }
+        }
 
         let short_hash = if id_str.len() >= 8 {
             id_str[..8].to_string()
@@ -126,4 +153,47 @@ pub fn analyze_repo(path: &Path) -> Result<GitStats, Box<dyn std::error::Error>>
         last_commit_date,
         repo_fingerprint,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_since_all_returns_none() {
+        assert!(parse_since("all").is_none());
+        assert!(parse_since("ALL").is_none());
+        assert!(parse_since("").is_none());
+        assert!(parse_since("  all  ").is_none());
+    }
+
+    #[test]
+    fn parse_since_relative_periods() {
+        let now = Utc::now();
+
+        let six_months = parse_since("6m").unwrap();
+        let diff = (now - six_months).num_days();
+        assert!((diff - 180).abs() <= 1, "6m should be ~180 days ago, got {}", diff);
+
+        let one_year = parse_since("1y").unwrap();
+        let diff = (now - one_year).num_days();
+        assert!((diff - 365).abs() <= 1, "1y should be ~365 days ago, got {}", diff);
+
+        let two_years = parse_since("2y").unwrap();
+        let diff = (now - two_years).num_days();
+        assert!((diff - 730).abs() <= 1, "2y should be ~730 days ago, got {}", diff);
+    }
+
+    #[test]
+    fn parse_since_date_string() {
+        let dt = parse_since("2025-01-15").unwrap();
+        assert_eq!(dt.format("%Y-%m-%d").to_string(), "2025-01-15");
+    }
+
+    #[test]
+    fn parse_since_invalid_date_returns_none() {
+        assert!(parse_since("not-a-date").is_none());
+        assert!(parse_since("2025-13-01").is_none());
+        assert!(parse_since("yesterday").is_none());
+    }
 }
