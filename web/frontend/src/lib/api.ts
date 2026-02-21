@@ -65,10 +65,12 @@ export async function fetchReport(id: string): Promise<ReportData | null> {
 export async function fetchLeaderboard(
   page = 1,
   limit = 20,
-  period?: string
+  period?: string,
+  sort?: string
 ): Promise<LeaderboardResponse> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (period) params.set('period', period);
+  if (sort) params.set('sort', sort);
   try {
     const res = await fetch(`${API_URL}/api/leaderboard?${params}`);
     if (!res.ok) throw new Error('Failed to fetch leaderboard');

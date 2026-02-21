@@ -621,6 +621,10 @@ app.get('/api/leaderboard', async (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 100)
   const offset = (page - 1) * limit
 
+  // Sort param
+  const sort = c.req.query('sort') || 'score'
+  const orderBy = sort === 'ai' ? 'ai_ratio DESC' : 'score_points DESC'
+
   // Period filter
   const period = c.req.query('period')
   let whereClause = ''
@@ -634,7 +638,7 @@ app.get('/api/leaderboard', async (c) => {
     `SELECT id, repo_name, github_username, ai_ratio, score_points, score_grade, roast, created_at
      FROM reports
      ${whereClause}
-     ORDER BY score_points DESC, created_at DESC
+     ORDER BY ${orderBy}, created_at DESC
      LIMIT ? OFFSET ?`
   ).bind(limit, offset).all()
 

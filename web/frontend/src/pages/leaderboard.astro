@@ -5,11 +5,12 @@ import { fetchLeaderboard } from '../lib/api';
 
 const page = Number(Astro.url.searchParams.get('page')) || 1;
 const period = Astro.url.searchParams.get('period') || undefined;
+const sort = Astro.url.searchParams.get('sort') || 'score';
 const limit = 20;
 
 let leaderboard = { entries: [], total: 0, page: 1, limit: 20 };
 try {
-  leaderboard = await fetchLeaderboard(page, limit, period);
+  leaderboard = await fetchLeaderboard(page, limit, period, sort);
 } catch {}
 
 const totalPages = Math.max(1, Math.ceil(leaderboard.total / limit));
@@ -22,6 +23,13 @@ const periods = [
 const showPrev = page > 1;
 const showNext = page + 1 <= totalPages;
 const periodSuffix = period ? `&period=${period}` : '';
+const sortSuffix = sort !== 'score' ? `&sort=${sort}` : '';
+const filterSuffix = `${periodSuffix}${sortSuffix}`;
+
+const sortOptions = [
+  { value: 'ai', label: 'AI %' },
+  { value: 'score', label: 'Vibe Score' },
+];
 
 // Pre-compute page numbers to avoid < / <= in template expressions
 function computePageNumbers(currentPage: number, total: number): number[] {
@@ -49,27 +57,50 @@ const pageNumbers = computePageNumbers(page, totalPages);
       </p>
     </div>
 
-    <!-- Period filters -->
-    <div class="flex items-center gap-2 mb-8">
-      {periods.map((p) => {
-        const isActive = period === p.value;
-        const href = p.value
-          ? `/leaderboard?period=${p.value}`
-          : '/leaderboard';
-        return (
-          <a
-            href={href}
-            class:list={[
-              'px-4 py-1.5 rounded-lg text-xs font-medium transition-all',
-              isActive
-                ? 'bg-tokyo-cyan/20 text-tokyo-cyan border border-tokyo-cyan/30'
-                : 'bg-tokyo-surface/50 text-tokyo-dimmed border border-tokyo-border/30 hover:text-tokyo-text hover:border-tokyo-border/50',
-            ]}
-          >
-            {p.label}
-          </a>
-        );
-      })}
+    <!-- Period filters + Sort toggle -->
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-3 mb-8">
+      <div class="flex items-center gap-2">
+        {periods.map((p) => {
+          const isActive = period === p.value;
+          const href = p.value
+            ? `/leaderboard?period=${p.value}${sortSuffix}`
+            : `/leaderboard${sortSuffix ? `?${sortSuffix.slice(1)}` : ''}`;
+          return (
+            <a
+              href={href}
+              class:list={[
+                'px-4 py-1.5 rounded-lg text-xs font-medium transition-all',
+                isActive
+                  ? 'bg-tokyo-cyan/20 text-tokyo-cyan border border-tokyo-cyan/30'
+                  : 'bg-tokyo-surface/50 text-tokyo-dimmed border border-tokyo-border/30 hover:text-tokyo-text hover:border-tokyo-border/50',
+              ]}
+            >
+              {p.label}
+            </a>
+          );
+        })}
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-tokyo-dimmed">Sort by:</span>
+        {sortOptions.map((s) => {
+          const isActive = sort === s.value;
+          const href = `/leaderboard?sort=${s.value}${periodSuffix}`;
+          return (
+            <a
+              href={href}
+              class:list={[
+                'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                isActive
+                  ? 'bg-tokyo-cyan/10 text-tokyo-cyan border border-tokyo-cyan/30'
+                  : 'bg-tokyo-surface/50 text-tokyo-dimmed border border-tokyo-border/30 hover:text-tokyo-text hover:border-tokyo-border/50',
+              ]}
+            >
+              {s.label}
+            </a>
+          );
+        })}
+      </div>
     </div>
 
     <!-- Table -->
@@ -85,7 +116,7 @@ const pageNumbers = computePageNumbers(page, totalPages);
       <div class="flex items-center justify-center gap-2">
         {showPrev && (
           <a
-            href={`/leaderboard?page=${page - 1}${periodSuffix}`}
+            href={`/leaderboard?page=${page - 1}${filterSuffix}`}
             class="px-3 py-1.5 rounded-lg text-xs bg-tokyo-surface/50 text-tokyo-dimmed border border-tokyo-border/30 hover:text-tokyo-text hover:border-tokyo-border/50 transition-all"
           >
             &larr; Prev
@@ -96,7 +127,7 @@ const pageNumbers = computePageNumbers(page, totalPages);
           const isCurrent = pageNum === page;
           return (
             <a
-              href={`/leaderboard?page=${pageNum}${periodSuffix}`}
+              href={`/leaderboard?page=${pageNum}${filterSuffix}`}
               class:list={[
                 'w-8 h-8 flex items-center justify-center rounded-lg text-xs transition-all',
                 isCurrent
@@ -111,7 +142,7 @@ const pageNumbers = computePageNumbers(page, totalPages);
 
         {showNext && (
           <a
-            href={`/leaderboard?page=${page + 1}${periodSuffix}`}
+            href={`/leaderboard?page=${page + 1}${filterSuffix}`}
             class="px-3 py-1.5 rounded-lg text-xs bg-tokyo-surface/50 text-tokyo-dimmed border border-tokyo-border/30 hover:text-tokyo-text hover:border-tokyo-border/50 transition-all"
           >
             Next &rarr;
