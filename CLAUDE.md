@@ -64,10 +64,11 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 - Score is UNCAPPED — can exceed 100 for S+ grade
 - **AI%** is separate factual metric: `ai_commits / total_commits * 100`
 
-## Web Stack
-- **Frontend**: Astro SSR on Vercel + Tailwind (Tokyo Night theme) — https://vibereport.vercel.app/
+## Domain & Web Stack
+- **Domain**: vibereport.dev (Cloudflare Registrar)
+- **Frontend**: Astro SSR on Vercel + Tailwind (Tokyo Night theme) — https://vibereport.vercel.app/ (will move to vibereport.dev)
 - **API**: Cloudflare Workers + Hono + D1 (SQLite) — https://vibereport-api.clement-serizay.workers.dev
-- **VPS Worker**: Axum HTTP server on OVH VPS (137.74.43.81) — scans repos via git clone
+- **VPS Worker**: Axum HTTP server on OVH VPS — https://scan.vibereport.dev (Cloudflare Tunnel)
 - **Database**: Cloudflare D1 (vibereport-db), schema in web/api/schema.sql
 - **GitHub token**: stored as Worker secret (GITHUB_TOKEN) for 5000 req/hr rate limit
 - **VPS auth**: Bearer token (VPS_AUTH_TOKEN secret on CF Worker)
@@ -76,12 +77,14 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 - **Deploy VPS**: ssh ubuntu@vps-139a77b3.vps.ovh.net, cd ~/vibereport, git pull, cargo build --release, sudo systemctl restart vibereport-worker
 
 ## VPS Scan Worker
-- POST /scan endpoint on port 3001, behind nginx on port 80
+- POST /scan endpoint on port 3001, exposed via Cloudflare Tunnel at https://scan.vibereport.dev
+- Named tunnel: `vibereport-scan` (ID: 1c244fbe-83cf-4435-aadb-b5fb09f7c9cd)
 - Auth: `Authorization: Bearer {VPS_AUTH_TOKEN}`
 - Clones repos with `git clone --bare --shallow-since`, runs `vibereport --json`
 - Concurrency: semaphore (5 concurrent clones)
-- systemd service: vibereport-worker
+- systemd services: vibereport-worker (Axum) + cloudflared-tunnel (Cloudflare Tunnel)
 - CF Worker proxies to VPS first, falls back to GitHub API if VPS is down
+- Config: ~/.cloudflared/config.yml on VPS
 
 ## Key Design Decisions
 - Share by default (--no-share to opt out) for maximum leaderboard participation
