@@ -6,3 +6,4 @@ web/api/.wrangler/
 web/frontend/node_modules/
 web/frontend/dist/
 web/frontend/.astro/
+web/frontend/.vercel/

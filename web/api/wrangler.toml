@@ -3,7 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
 [vars]
-VPS_SCAN_URL = "https://scan.vibereport.dev"
+VPS_SCAN_URL = "http://137.74.43.81"
 
 [[d1_databases]]
 binding = "DB"

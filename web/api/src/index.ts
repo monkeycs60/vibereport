@@ -280,7 +280,7 @@ app.post('/api/reports', async (c) => {
 
   return c.json({
     id,
-    url: `https://vibereport.dev/r/${id}`,
+    url: `https://vibereport.vercel.app/r/${id}`,
     rank,
     percentile: Math.round(percentile * 10) / 10,
   })
@@ -433,7 +433,7 @@ app.post('/api/scan', async (c) => {
           roast,
           chaos_badges: chaosBadges,
           scan_source: 'web_vps',
-          url: `https://vibereport.dev/r/${reportId}`,
+          url: `https://vibereport.vercel.app/r/${reportId}`,
         })
       }
       // VPS returned non-ok status — fall through to GitHub API
@@ -544,7 +544,7 @@ app.post('/api/scan', async (c) => {
       roast,
       chaos_badges: chaosBadges,
       scan_source: 'web_github',
-      url: `https://vibereport.dev/r/${reportId}`,
+      url: `https://vibereport.vercel.app/r/${reportId}`,
     })
   } catch (err: any) {
     if (err.message?.includes('404')) {
