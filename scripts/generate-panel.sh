@@ -76,24 +76,22 @@ elif [[ $TOTAL -lt 1000 ]]; then
   echo "WARNING: Only $TOTAL unique repos found (target: 1000)"
 fi
 
-# --- Insert into D1 via wrangler ---
+# --- Build SQL file and batch insert into D1 ---
 echo ""
-echo "Inserting $TOTAL repos into D1 (index_panel)..."
-COUNT=0
+echo "Building SQL batch for $TOTAL repos..."
+SQLFILE=$(mktemp /tmp/panel-sql-XXXXXX.sql)
+trap 'rm -f "$TMPFILE" "$DEDUPED" "$SQLFILE"' EXIT
 
+COUNT=0
 while IFS='|' read -r slug source stars; do
-  # Escape single quotes in slug for SQL safety
   safe_slug="${slug//\'/\'\'}"
   safe_source="${source//\'/\'\'}"
-
-  cd "$API_DIR" && npx wrangler d1 execute "$DB_NAME" --remote \
-    --command "INSERT INTO index_panel (repo_slug, quarter, panel_source, stars) VALUES ('$safe_slug', '$QUARTER', '$safe_source', $stars) ON CONFLICT(repo_slug, quarter) DO UPDATE SET panel_source = excluded.panel_source, stars = excluded.stars;"
-
+  echo "INSERT INTO index_panel (repo_slug, quarter, panel_source, stars) VALUES ('$safe_slug', '$QUARTER', '$safe_source', $stars) ON CONFLICT(repo_slug, quarter) DO UPDATE SET panel_source = excluded.panel_source, stars = excluded.stars;" >> "$SQLFILE"
   COUNT=$((COUNT + 1))
-  if [[ $((COUNT % 100)) -eq 0 ]]; then
-    echo "  Inserted $COUNT / $TOTAL repos..."
-  fi
 done < "$DEDUPED"
+
+echo "Executing batch SQL ($COUNT statements)..."
+cd "$API_DIR" && npx wrangler d1 execute "$DB_NAME" --remote --file "$SQLFILE"
 
 echo ""
 echo "Done! Inserted $COUNT repos for $QUARTER"
