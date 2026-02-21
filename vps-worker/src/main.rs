@@ -250,8 +250,8 @@ async fn scan_single_repo(slug: &str, vibereport_bin: &str) -> Option<RepoScanRe
     let tmp_dir = format!("/tmp/vibereport-idx-{}", uuid);
     let repo_url = format!("https://github.com/{}.git", slug);
 
-    // Clone
-    let clone = tokio::process::Command::new("git")
+    // Clone with 120s timeout (some data repos are multi-GB)
+    let clone_fut = tokio::process::Command::new("git")
         .args([
             "clone",
             "--bare",
@@ -259,9 +259,16 @@ async fn scan_single_repo(slug: &str, vibereport_bin: &str) -> Option<RepoScanRe
             &repo_url,
             &tmp_dir,
         ])
-        .output()
-        .await
-        .ok()?;
+        .output();
+
+    let clone = match tokio::time::timeout(std::time::Duration::from_secs(120), clone_fut).await {
+        Ok(result) => result.ok()?,
+        Err(_) => {
+            let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
+            tracing::warn!("Clone timed out for {}", slug);
+            return None;
+        }
+    };
 
     if !clone.status.success() {
         let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
@@ -269,12 +276,20 @@ async fn scan_single_repo(slug: &str, vibereport_bin: &str) -> Option<RepoScanRe
         return None;
     }
 
-    // Analyze
-    let analyze = tokio::process::Command::new(vibereport_bin)
+    // Analyze with 60s timeout
+    let analyze_fut = tokio::process::Command::new(vibereport_bin)
         .args([&tmp_dir, "--json", "--since", "2026-01-01", "--no-share"])
-        .output()
-        .await
-        .ok()?;
+        .output();
+
+    let analyze = match tokio::time::timeout(std::time::Duration::from_secs(60), analyze_fut).await
+    {
+        Ok(result) => result.ok()?,
+        Err(_) => {
+            let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
+            tracing::warn!("Analysis timed out for {}", slug);
+            return None;
+        }
+    };
 
     let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
 
