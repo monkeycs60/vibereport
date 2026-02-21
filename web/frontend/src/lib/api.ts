@@ -16,7 +16,6 @@ export interface ReportData {
 
 export interface StatsData {
   total_reports: number;
-  average_ai_percent: number;
   total_commits: number;
   total_ai_commits: number;
 }
@@ -43,15 +42,13 @@ export async function fetchStats(): Promise<StatsData> {
     const res = await fetch(`${API_URL}/api/stats`);
     if (!res.ok) throw new Error('Failed to fetch stats');
     const data = await res.json();
-    // API returns avg_ai_ratio (0-1), frontend expects average_ai_percent (0-100)
     return {
       total_reports: data.total_reports || 0,
-      average_ai_percent: Math.round((data.avg_ai_ratio || 0) * 100),
       total_commits: data.total_commits || 0,
       total_ai_commits: data.total_ai_commits || 0,
     };
   } catch {
-    return { total_reports: 0, average_ai_percent: 0, total_commits: 0, total_ai_commits: 0 };
+    return { total_reports: 0, total_commits: 0, total_ai_commits: 0 };
   }
 }
 

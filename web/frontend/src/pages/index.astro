@@ -6,7 +6,7 @@ import TrendChart from '../components/TrendChart.astro';
 import BattleChart from '../components/BattleChart.astro';
 import { fetchStats, fetchLeaderboard, fetchTrends } from '../lib/api';
 
-let stats = { total_reports: 0, average_ai_percent: 0, total_commits: 0, total_ai_commits: 0 };
+let stats = { total_reports: 0, total_commits: 0, total_ai_commits: 0 };
 let leaderboard = { entries: [], total: 0, page: 1, limit: 5 };
 let trends = { period: '1y', trends: [] as Array<{ month: string; avg_ai_ratio: number; total_scans: number; avg_score: number; total_commits: number; ai_commits: number }> };
 
@@ -92,17 +92,11 @@ const totalHumanCommits = trends.trends.reduce((s, t) => s + ((t.total_commits |
   <!-- Stats -->
   <section class="py-16 border-y border-tokyo-border/20">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-12">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 sm:gap-12 max-w-2xl mx-auto">
         <StatsCounter
           label="Repos scanned"
           value={stats.total_reports}
           emoji="\u{1F4CA}"
-        />
-        <StatsCounter
-          label="Average AI %"
-          value={Math.round(stats.average_ai_percent)}
-          suffix="%"
-          emoji="\u{1F916}"
         />
         <StatsCounter
           label="Commits analyzed"
