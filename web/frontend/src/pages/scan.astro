@@ -66,22 +66,17 @@ const apiUrl = getApiUrl();
       <!-- Result state -->
       <div id="scan-result" class="hidden">
         <div class="p-6 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 backdrop-blur-sm">
-          <!-- Header: Repo name + Grade badge (big, prominent) + Vibe Score -->
-          <div class="flex items-center gap-4 mb-5">
-            <div id="result-grade" class="w-20 h-20 flex-shrink-0 flex items-center justify-center rounded-2xl text-4xl font-bold border-2"></div>
-            <div class="flex-1 min-w-0">
-              <h3 id="result-repo" class="text-xl font-bold text-tokyo-text truncate"></h3>
-              <div class="flex items-center gap-3 mt-1.5">
-                <span class="text-xs text-tokyo-dimmed">Vibe Score</span>
-                <span id="result-score" class="text-lg font-bold"></span>
-              </div>
-              <p class="text-xs text-tokyo-dimmed mt-0.5">
-                <span id="result-commits"></span> commits analyzed
-              </p>
-            </div>
+          <!-- Header: AI% as hero metric -->
+          <div class="text-center mb-5">
+            <h3 id="result-repo" class="text-xl font-bold text-tokyo-text mb-3"></h3>
+            <div class="text-5xl font-bold text-[#f7768e] mb-1" id="result-ai-pct-hero"></div>
+            <p class="text-sm text-tokyo-dimmed">AI-generated commits</p>
+            <p class="text-xs text-tokyo-dimmed mt-1">
+              <span id="result-commits"></span> commits analyzed
+            </p>
           </div>
 
-          <!-- AI% horizontal bar (red=AI, blue=Human, tug-of-war style) -->
+          <!-- AI vs Human bar -->
           <div class="mb-5">
             <div class="flex items-center justify-between text-xs mb-1.5">
               <span class="text-[#f7768e]">AI <span id="result-ai-count"></span> (<span id="result-ai-pct"></span>%)</span>
@@ -89,6 +84,19 @@ const apiUrl = getApiUrl();
             </div>
             <div class="h-4 bg-[#7aa2f7]/30 rounded-full overflow-hidden relative">
               <div id="result-ai-bar" class="h-full rounded-full transition-all duration-1000 ease-out" style="width: 0%; background: linear-gradient(90deg, #f7768e, #ff9e64);"></div>
+            </div>
+          </div>
+
+          <!-- Vibe Score + Grade (secondary) -->
+          <div class="flex items-center justify-center gap-6 mb-5 p-4 rounded-xl bg-tokyo-bg/40 border border-tokyo-border/20">
+            <div class="text-center">
+              <p class="text-xs text-tokyo-dimmed mb-1">Vibe Score</p>
+              <span id="result-score" class="text-2xl font-bold"></span>
+            </div>
+            <div class="h-10 w-px bg-tokyo-border/30"></div>
+            <div class="text-center">
+              <p class="text-xs text-tokyo-dimmed mb-1">Grade</p>
+              <div id="result-grade" class="w-14 h-14 flex items-center justify-center rounded-xl text-2xl font-bold border-2"></div>
             </div>
           </div>
 
@@ -248,6 +256,7 @@ const apiUrl = getApiUrl();
       // Populate result
       document.getElementById('result-repo').textContent = data.repo_name || repo;
       document.getElementById('result-commits').textContent = (data.total_commits || 0).toLocaleString();
+      document.getElementById('result-ai-pct-hero').textContent = aiPct + '%';
       document.getElementById('result-ai-pct').textContent = String(aiPct);
       document.getElementById('result-human-pct').textContent = String(humanPct);
       document.getElementById('result-ai-count').textContent = (data.ai_commits || 0).toLocaleString();
@@ -255,15 +264,15 @@ const apiUrl = getApiUrl();
       document.getElementById('result-score').textContent = data.score || '0';
       document.getElementById('result-roast').textContent = `"${data.roast || 'No roast available.'}"`;
 
-      // Grade badge (big, prominent)
+      // Grade badge (secondary)
       const gradeEl = document.getElementById('result-grade');
       const [textCls, bgCls, borderCls] = getGradeClasses(data.grade);
-      gradeEl.className = `w-20 h-20 flex-shrink-0 flex items-center justify-center rounded-2xl text-4xl font-bold border-2 ${textCls} ${bgCls} ${borderCls}`;
+      gradeEl.className = `w-14 h-14 flex items-center justify-center rounded-xl text-2xl font-bold border-2 ${textCls} ${bgCls} ${borderCls}`;
       gradeEl.textContent = data.grade || '?';
 
       // Score color
       const scoreEl = document.getElementById('result-score');
-      scoreEl.className = `text-lg font-bold ${textCls}`;
+      scoreEl.className = `text-2xl font-bold ${textCls}`;
 
       // AI bar animation (red=AI, blue background=Human)
       setTimeout(() => {
