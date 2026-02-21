@@ -32,14 +32,29 @@ import Base from '../layouts/Base.astro';
       <h2 class="text-xl font-bold text-tokyo-text mb-4 flex items-center gap-2">
         <span class="text-tokyo-cyan">#</span> Install
       </h2>
+      <!-- macOS / Linux -->
+      <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden mb-3">
+        <div class="flex items-center justify-between px-4 py-2 border-b border-tokyo-border/20">
+          <span class="text-xs text-tokyo-dimmed">macOS / Linux</span>
+        </div>
+        <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>curl -fsSL https://vibereport.dev/install.sh | sh</code></pre>
+      </div>
+      <!-- Windows -->
+      <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden mb-3">
+        <div class="flex items-center justify-between px-4 py-2 border-b border-tokyo-border/20">
+          <span class="text-xs text-tokyo-dimmed">Windows (PowerShell)</span>
+        </div>
+        <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>irm https://vibereport.dev/install.ps1 | iex</code></pre>
+      </div>
+      <!-- Cargo -->
       <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
         <div class="flex items-center justify-between px-4 py-2 border-b border-tokyo-border/20">
-          <span class="text-xs text-tokyo-dimmed">shell</span>
+          <span class="text-xs text-tokyo-dimmed">cargo</span>
         </div>
         <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>cargo install vibereport</code></pre>
       </div>
       <p class="text-sm text-tokyo-dimmed mt-3">
-        Requires <a href="https://rustup.rs" target="_blank" rel="noopener noreferrer" class="text-tokyo-cyan hover:underline">Rust</a> installed on your system.
+        Cargo requires <a href="https://rustup.rs" target="_blank" rel="noopener noreferrer" class="text-tokyo-cyan hover:underline">Rust</a> installed on your system.
       </p>
     </div>
 

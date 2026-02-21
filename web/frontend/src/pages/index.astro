@@ -65,7 +65,7 @@ const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
         <!-- Quick install -->
         <div class="inline-flex items-center gap-3 px-4 py-2.5 bg-tokyo-surface/60 backdrop-blur border border-tokyo-border/30 rounded-lg">
           <code class="text-sm text-tokyo-green">$</code>
-          <code class="text-sm text-tokyo-text" id="install-cmd">cargo install vibereport</code>
+          <code class="text-sm text-tokyo-text" id="install-cmd">curl -fsSL https://vibereport.dev/install.sh | sh</code>
           <button
             id="copy-install"
             class="text-tokyo-dimmed hover:text-tokyo-cyan transition-colors"
@@ -153,7 +153,7 @@ const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
           </a>
           <span class="text-tokyo-dimmed text-sm">or</span>
           <code class="px-4 py-2.5 bg-tokyo-bg rounded-lg text-sm text-tokyo-green border border-tokyo-border/30">
-            cargo install vibereport
+            curl -fsSL vibereport.dev/install.sh | sh
           </code>
         </div>
       </div>
@@ -164,7 +164,7 @@ const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
 <script>
   // Copy install command
   document.getElementById('copy-install')?.addEventListener('click', () => {
-    navigator.clipboard.writeText('cargo install vibereport');
+    navigator.clipboard.writeText('curl -fsSL https://vibereport.dev/install.sh | sh');
     const btn = document.getElementById('copy-install');
     if (btn) {
       btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-tokyo-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>';

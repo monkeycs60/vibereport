@@ -44,8 +44,14 @@ vibereport scans your git history and tells you exactly how AI-dependent your co
 ## Quick Start
 
 ```bash
-# Install
-cargo install vibereport
+# Install (macOS / Linux)
+curl -fsSL https://vibereport.dev/install.sh | sh
+
+# Install (Windows PowerShell)
+# irm https://vibereport.dev/install.ps1 | iex
+
+# Or via cargo
+# cargo install vibereport
 
 # Scan your current repo
 vibereport

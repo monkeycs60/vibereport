@@ -7,6 +7,11 @@ version = "0.1.0"
 edition = "2021"
 description = "The Spotify Wrapped for your code. How much of your repo is AI-generated?"
 license = "MIT"
+repository = "https://github.com/vibereport/vibereport"
+homepage = "https://vibereport.dev"
+keywords = ["ai", "git", "vibe-coding", "code-analysis", "developer-tools"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = ["web/", "vps-worker/", "docs/", "scripts/", ".github/"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
