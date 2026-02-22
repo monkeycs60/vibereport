@@ -1004,11 +1004,20 @@ app.post('/api/index-trigger', async (c) => {
     return c.json({ error: 'VPS not configured' }, 500)
   }
 
-  let body: { scan_dates?: string[] } = {}
+  let body: { scan_dates?: string[]; from_date?: string; to_date?: string } = {}
   try {
     body = await c.req.json()
   } catch {
     // empty body is fine, VPS defaults to today
+  }
+
+  // Forward all params to VPS (from_date/to_date or scan_dates)
+  const vpsBody: Record<string, unknown> = {}
+  if (body.from_date && body.to_date) {
+    vpsBody.from_date = body.from_date
+    vpsBody.to_date = body.to_date
+  } else if (body.scan_dates) {
+    vpsBody.scan_dates = body.scan_dates
   }
 
   const res = await fetch(`${c.env.VPS_SCAN_URL}/index-scan`, {
@@ -1017,7 +1026,7 @@ app.post('/api/index-trigger', async (c) => {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${c.env.VPS_AUTH_TOKEN}`,
     },
-    body: JSON.stringify({ scan_dates: body.scan_dates || [] }),
+    body: JSON.stringify(vpsBody),
   })
 
   const result = await res.json()

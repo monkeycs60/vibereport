@@ -160,8 +160,10 @@ async fn scan_handler(
 #[derive(Deserialize)]
 struct IndexScanRequest {
     /// Optional list of scan dates (YYYY-MM-DD) to post results for.
-    /// If omitted, defaults to today's UTC date.
     scan_dates: Option<Vec<String>>,
+    /// Alternative: generate all dates in [from_date, to_date] range (inclusive).
+    from_date: Option<String>,
+    to_date: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -188,24 +190,38 @@ async fn index_scan_handler(
         return Err((StatusCode::UNAUTHORIZED, "Invalid token".into()));
     }
 
-    // Validate scan_dates if provided, otherwise default to today
-    let scan_dates: Vec<String> = if let Some(dates) = req.scan_dates {
-        for d in &dates {
-            if !SINCE_DATE_RE.is_match(d) {
+    // Build scan_dates: from_date/to_date range > explicit scan_dates > today
+    let scan_dates: Vec<String> =
+        if let (Some(from), Some(to)) = (req.from_date.as_deref(), req.to_date.as_deref()) {
+            if !SINCE_DATE_RE.is_match(from) || !SINCE_DATE_RE.is_match(to) {
                 return Err((
                     StatusCode::BAD_REQUEST,
-                    format!("Invalid scan_date format: {}, expected YYYY-MM-DD", d),
+                    "from_date/to_date must match YYYY-MM-DD".into(),
                 ));
             }
-        }
-        if dates.is_empty() {
-            vec![chrono::Utc::now().format("%Y-%m-%d").to_string()]
+            generate_date_range(from, to).ok_or_else(|| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    "Invalid date range (check dates are valid and from <= to)".into(),
+                )
+            })?
+        } else if let Some(dates) = req.scan_dates {
+            for d in &dates {
+                if !SINCE_DATE_RE.is_match(d) {
+                    return Err((
+                        StatusCode::BAD_REQUEST,
+                        format!("Invalid scan_date format: {}, expected YYYY-MM-DD", d),
+                    ));
+                }
+            }
+            if dates.is_empty() {
+                vec![chrono::Utc::now().format("%Y-%m-%d").to_string()]
+            } else {
+                dates
+            }
         } else {
-            dates
-        }
-    } else {
-        vec![chrono::Utc::now().format("%Y-%m-%d").to_string()]
-    };
+            vec![chrono::Utc::now().format("%Y-%m-%d").to_string()]
+        };
 
     // FIX 2: Use api_url from state instead of request
     let api_url = state.api_url.clone();
@@ -426,6 +442,23 @@ async fn scan_single_repo(
         total_commits: data["total_commits"].as_u64().unwrap_or(0),
         ai_commits: data["ai_commits"].as_u64().unwrap_or(0),
     })
+}
+
+// ── Date range helper ──
+
+fn generate_date_range(from: &str, to: &str) -> Option<Vec<String>> {
+    let start = chrono::NaiveDate::parse_from_str(from, "%Y-%m-%d").ok()?;
+    let end = chrono::NaiveDate::parse_from_str(to, "%Y-%m-%d").ok()?;
+    if start > end {
+        return None;
+    }
+    let mut dates = Vec::new();
+    let mut current = start;
+    while current <= end {
+        dates.push(current.format("%Y-%m-%d").to_string());
+        current += chrono::Duration::days(1);
+    }
+    Some(dates)
 }
 
 // ── Quarter helper ──
