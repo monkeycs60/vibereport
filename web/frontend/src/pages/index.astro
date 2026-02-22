@@ -63,12 +63,12 @@ const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
         </div>
 
         <!-- Quick install -->
-        <div class="inline-flex items-center gap-3 px-4 py-2.5 bg-tokyo-surface/60 backdrop-blur border border-tokyo-border/30 rounded-lg">
-          <code class="text-sm text-tokyo-green">$</code>
-          <code class="text-sm text-tokyo-text" id="install-cmd">curl -fsSL https://vibereport.dev/install.sh | sh</code>
+        <div class="inline-flex items-center gap-3 px-4 py-2.5 bg-tokyo-surface/60 backdrop-blur border border-tokyo-border/30 rounded-lg max-w-full">
+          <code class="text-sm text-tokyo-green shrink-0">$</code>
+          <code class="text-xs sm:text-sm text-tokyo-text break-all" id="install-cmd">curl -fsSL https://vibereport.dev/install.sh | sh</code>
           <button
             id="copy-install"
-            class="text-tokyo-dimmed hover:text-tokyo-cyan transition-colors"
+            class="text-tokyo-dimmed hover:text-tokyo-cyan transition-colors shrink-0"
             title="Copy to clipboard"
           >
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -152,7 +152,7 @@ const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
             Scan a repo online
           </a>
           <span class="text-tokyo-dimmed text-sm">or</span>
-          <code class="px-4 py-2.5 bg-tokyo-bg rounded-lg text-sm text-tokyo-green border border-tokyo-border/30">
+          <code class="px-4 py-2.5 bg-tokyo-bg rounded-lg text-xs sm:text-sm text-tokyo-green border border-tokyo-border/30 break-all">
             curl -fsSL vibereport.dev/install.sh | sh
           </code>
         </div>
