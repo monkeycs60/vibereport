@@ -356,6 +356,15 @@ const apiUrl = getApiUrl();
       if (!badges.includes('no-ci-cd') && hasBadgeData) {
         breakdown.push({ label: 'Has CI/CD', pts: 0, bad: false });
       }
+      if (!badges.includes('no-gitignore') && hasBadgeData) {
+        breakdown.push({ label: 'Has .gitignore', pts: 0, bad: false });
+      }
+      if (!badges.includes('no-readme') && hasBadgeData) {
+        breakdown.push({ label: 'Has README', pts: 0, bad: false });
+      }
+      if (!badges.includes('boomer-ai') && hasBadgeData && report.ai_ratio > 0) {
+        breakdown.push({ label: 'AI Config', pts: 0, bad: false });
+      }
 
       if (breakdown.length > 0) {
         document.getElementById('rpt-breakdown-section').classList.remove('hidden');
