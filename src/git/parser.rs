@@ -80,11 +80,12 @@ pub fn analyze_repo(
         let message = commit.message_raw_sloppy().to_string();
         let author_sig = commit.author()?;
         let author_name = author_sig.name.to_string();
+        let author_email = author_sig.email.to_string();
         let seconds = author_sig.seconds();
 
         let timestamp = DateTime::from_timestamp(seconds, 0).unwrap_or_default();
 
-        let ai_tool = detect_ai_tool(&message);
+        let ai_tool = detect_ai_tool(&message, &author_email);
 
         let id_str = info.id.to_string();
         // Track the full hash; last iteration = oldest (root) commit
