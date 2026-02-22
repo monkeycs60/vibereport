@@ -948,6 +948,20 @@ app.post('/api/index-results', async (c) => {
   return c.json({ ok: true, snapshot: { scanDate, totalRepos, totalCommits, totalAiCommits, aiPercent: Math.round(aiPercent * 100) / 100 } })
 })
 
+// ── POST /api/index-clear — Admin: clear index scans & snapshots (auth required) ──
+app.post('/api/index-clear', async (c) => {
+  const auth = c.req.header('authorization') || ''
+  if (auth !== `Bearer ${c.env.VPS_AUTH_TOKEN}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const db = c.env.DB
+  await db.prepare('DELETE FROM index_scans').run()
+  await db.prepare('DELETE FROM index_snapshots').run()
+
+  return c.json({ ok: true, message: 'All index_scans and index_snapshots cleared' })
+})
+
 // ── GET /api/index-latest — Latest index snapshot for frontend ──
 app.get('/api/index-latest', async (c) => {
   const ip = c.req.header('cf-connecting-ip') || 'unknown';
@@ -977,6 +991,46 @@ app.get('/api/index-trend', async (c) => {
      ORDER BY snapshot_date ASC`
   ).all()
   return c.json({ snapshots: result.results })
+})
+
+// ── POST /api/index-trigger — Admin: manually trigger VPS scan with optional scan_dates ──
+app.post('/api/index-trigger', async (c) => {
+  const auth = c.req.header('authorization') || ''
+  if (auth !== `Bearer ${c.env.VPS_AUTH_TOKEN}`) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  if (!c.env.VPS_SCAN_URL || !c.env.VPS_AUTH_TOKEN) {
+    return c.json({ error: 'VPS not configured' }, 500)
+  }
+
+  let body: { scan_dates?: string[]; from_date?: string; to_date?: string } = {}
+  try {
+    body = await c.req.json()
+  } catch {
+    // empty body is fine, VPS defaults to today
+  }
+
+  // Forward all params to VPS (from_date/to_date or scan_dates)
+  const vpsBody: Record<string, unknown> = {}
+  if (body.from_date && body.to_date) {
+    vpsBody.from_date = body.from_date
+    vpsBody.to_date = body.to_date
+  } else if (body.scan_dates) {
+    vpsBody.scan_dates = body.scan_dates
+  }
+
+  const res = await fetch(`${c.env.VPS_SCAN_URL}/index-scan`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${c.env.VPS_AUTH_TOKEN}`,
+    },
+    body: JSON.stringify(vpsBody),
+  })
+
+  const result = await res.json()
+  return c.json({ ok: true, vps_response: result })
 })
 
 // ── Health check ──

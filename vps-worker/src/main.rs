@@ -158,13 +158,34 @@ async fn scan_handler(
 
 // FIX 2: Removed api_url from IndexScanRequest
 #[derive(Deserialize)]
-struct IndexScanRequest {}
+struct IndexScanRequest {
+    /// Optional list of scan dates (YYYY-MM-DD) to post results for.
+    scan_dates: Option<Vec<String>>,
+    /// Alternative: generate all dates in [from_date, to_date] range (inclusive).
+    from_date: Option<String>,
+    to_date: Option<String>,
+}
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 struct RepoScanResult {
     repo_slug: String,
     total_commits: u64,
     ai_commits: u64,
+}
+
+/// Per-repo daily commit breakdown (from vibereport --json daily_commits field).
+#[derive(Clone)]
+struct RepoDailyBreakdown {
+    repo_slug: String,
+    /// Non-cumulative daily counts, sorted oldest-first: [{date, total, ai}, ...]
+    days: Vec<DayEntry>,
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct DayEntry {
+    date: String,
+    total: u64,
+    ai: u64,
 }
 
 // ── Index scan handler ──
@@ -172,7 +193,7 @@ struct RepoScanResult {
 async fn index_scan_handler(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
-    Json(_req): Json<IndexScanRequest>,
+    Json(req): Json<IndexScanRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     // Auth check (FIX 4: constant-time comparison)
     let auth = headers
@@ -183,6 +204,39 @@ async fn index_scan_handler(
     if auth.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() != 1 {
         return Err((StatusCode::UNAUTHORIZED, "Invalid token".into()));
     }
+
+    // Build scan_dates: from_date/to_date range > explicit scan_dates > today
+    let scan_dates: Vec<String> =
+        if let (Some(from), Some(to)) = (req.from_date.as_deref(), req.to_date.as_deref()) {
+            if !SINCE_DATE_RE.is_match(from) || !SINCE_DATE_RE.is_match(to) {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    "from_date/to_date must match YYYY-MM-DD".into(),
+                ));
+            }
+            generate_date_range(from, to).ok_or_else(|| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    "Invalid date range (check dates are valid and from <= to)".into(),
+                )
+            })?
+        } else if let Some(dates) = req.scan_dates {
+            for d in &dates {
+                if !SINCE_DATE_RE.is_match(d) {
+                    return Err((
+                        StatusCode::BAD_REQUEST,
+                        format!("Invalid scan_date format: {}, expected YYYY-MM-DD", d),
+                    ));
+                }
+            }
+            if dates.is_empty() {
+                vec![chrono::Utc::now().format("%Y-%m-%d").to_string()]
+            } else {
+                dates
+            }
+        } else {
+            vec![chrono::Utc::now().format("%Y-%m-%d").to_string()]
+        };
 
     // FIX 2: Use api_url from state instead of request
     let api_url = state.api_url.clone();
@@ -229,16 +283,20 @@ async fn index_scan_handler(
     let auth_token = state.auth_token.clone();
     let vibereport_bin = state.vibereport_bin.clone();
     let state_clone = Arc::clone(&state);
+    let scan_dates_for_response = scan_dates.clone();
+
+    let is_backfill = scan_dates.len() > 1;
 
     tokio::spawn(async move {
-        // Pass 1: normal timeouts (120s clone, 60s analysis)
-        let scanned: Vec<(String, Option<RepoScanResult>)> = stream::iter(repos)
+        // Scan all repos (pass 1 + pass 2 retry).
+        // In backfill mode, use scan_single_repo_daily to get per-day breakdown.
+        let scanned: Vec<(String, Option<serde_json::Value>)> = stream::iter(repos)
             .map(|slug| {
                 let sem = &state_clone.index_semaphore;
                 let bin = vibereport_bin.clone();
                 async move {
                     let _permit = sem.acquire().await.ok()?;
-                    let result = scan_single_repo(&slug, &bin, 120, 60).await;
+                    let result = scan_single_repo_raw(&slug, &bin, 120, 60).await;
                     Some((slug, result))
                 }
             })
@@ -247,16 +305,16 @@ async fn index_scan_handler(
             .collect()
             .await;
 
-        let mut results: Vec<RepoScanResult> = Vec::new();
+        let mut raw_results: Vec<(String, serde_json::Value)> = Vec::new();
         let mut failed_slugs: Vec<String> = Vec::new();
         for (slug, result) in scanned {
             match result {
-                Some(r) => results.push(r),
+                Some(data) => raw_results.push((slug, data)),
                 None => failed_slugs.push(slug),
             }
         }
 
-        // Pass 2: retry failed repos with doubled timeouts (240s clone, 120s analysis)
+        // Pass 2: retry failed repos with doubled timeouts
         if !failed_slugs.is_empty() {
             tracing::info!(
                 "Retrying {}/{} failed repos with extended timeouts",
@@ -264,13 +322,14 @@ async fn index_scan_handler(
                 repo_count
             );
 
-            let retry_results: Vec<RepoScanResult> = stream::iter(failed_slugs)
+            let retry_results: Vec<(String, serde_json::Value)> = stream::iter(failed_slugs)
                 .map(|slug| {
                     let sem = &state_clone.index_semaphore;
                     let bin = vibereport_bin.clone();
                     async move {
                         let _permit = sem.acquire().await.ok()?;
-                        scan_single_repo(&slug, &bin, 240, 120).await
+                        let data = scan_single_repo_raw(&slug, &bin, 240, 120).await?;
+                        Some((slug, data))
                     }
                 })
                 .buffer_unordered(3)
@@ -279,38 +338,74 @@ async fn index_scan_handler(
                 .await;
 
             tracing::info!("Retry recovered {} repos", retry_results.len());
-            results.extend(retry_results);
+            raw_results.extend(retry_results);
         }
 
-        let scan_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
         tracing::info!(
-            "Index scan complete: {}/{} repos scanned, posting results",
-            results.len(),
-            repo_count
+            "Index scan complete: {}/{} repos scanned, posting results for {} date(s)",
+            raw_results.len(),
+            repo_count,
+            scan_dates.len()
         );
 
-        // Post results back to CF API
         let client = reqwest::Client::new();
-        let post_body = serde_json::json!({
-            "scan_date": scan_date,
-            "results": results,
-        });
 
-        match client
-            .post(format!("{}/api/index-results", api_url))
-            .header("Authorization", format!("Bearer {}", auth_token))
-            .json(&post_body)
-            .send()
-            .await
-        {
-            Ok(res) => {
-                let status = res.status();
-                let body: serde_json::Value = res.json().await.unwrap_or_default();
-                tracing::info!("Index results posted: status={}, body={}", status, body);
+        if is_backfill {
+            // Backfill mode: use daily_commits to compute cumulative per-date results.
+            // For each scan_date, each repo's result = sum of daily_commits entries <= that date.
+            let mut repo_dailies: Vec<RepoDailyBreakdown> = Vec::new();
+            for (slug, data) in &raw_results {
+                let days: Vec<DayEntry> = data["daily_commits"]
+                    .as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| serde_json::from_value(v.clone()).ok())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                repo_dailies.push(RepoDailyBreakdown {
+                    repo_slug: slug.clone(),
+                    days,
+                });
             }
-            Err(e) => {
-                tracing::error!("Failed to post index results: {}", e);
+
+            for scan_date in &scan_dates {
+                // For each repo, sum daily entries with date <= scan_date
+                let results: Vec<RepoScanResult> = repo_dailies
+                    .iter()
+                    .map(|rd| {
+                        let (total, ai) = rd.days.iter().fold((0u64, 0u64), |(t, a), day| {
+                            if day.date.as_str() <= scan_date.as_str() {
+                                (t + day.total, a + day.ai)
+                            } else {
+                                (t, a)
+                            }
+                        });
+                        RepoScanResult {
+                            repo_slug: rd.repo_slug.clone(),
+                            total_commits: total,
+                            ai_commits: ai,
+                        }
+                    })
+                    // Skip repos with 0 commits for this date
+                    .filter(|r| r.total_commits > 0)
+                    .collect();
+
+                post_results(&client, &api_url, &auth_token, scan_date, &results).await;
             }
+        } else {
+            // Normal mode: single date, use totals directly
+            let results: Vec<RepoScanResult> = raw_results
+                .iter()
+                .map(|(slug, data)| RepoScanResult {
+                    repo_slug: slug.clone(),
+                    total_commits: data["total_commits"].as_u64().unwrap_or(0),
+                    ai_commits: data["ai_commits"].as_u64().unwrap_or(0),
+                })
+                .collect();
+
+            let scan_date = &scan_dates[0];
+            post_results(&client, &api_url, &auth_token, scan_date, &results).await;
         }
     });
 
@@ -318,17 +413,18 @@ async fn index_scan_handler(
         "status": "started",
         "repos": repo_count,
         "quarter": quarter,
+        "scan_dates": scan_dates_for_response,
     })))
 }
 
-// ── Single repo scanner for index ──
+// ── Single repo scanner for index (returns raw JSON from vibereport) ──
 
-async fn scan_single_repo(
+async fn scan_single_repo_raw(
     slug: &str,
     vibereport_bin: &str,
     clone_timeout_secs: u64,
     analyze_timeout_secs: u64,
-) -> Option<RepoScanResult> {
+) -> Option<serde_json::Value> {
     let uuid = Uuid::new_v4().to_string();
     let tmp_dir = format!("/tmp/vibereport-idx-{}", uuid);
     let repo_url = format!("https://github.com/{}.git", slug);
@@ -387,13 +483,61 @@ async fn scan_single_repo(
     }
 
     let stdout = String::from_utf8_lossy(&analyze.stdout);
-    let data: serde_json::Value = serde_json::from_str(&stdout).ok()?;
+    serde_json::from_str(&stdout).ok()
+}
 
-    Some(RepoScanResult {
-        repo_slug: slug.to_string(),
-        total_commits: data["total_commits"].as_u64().unwrap_or(0),
-        ai_commits: data["ai_commits"].as_u64().unwrap_or(0),
-    })
+// ── Post results helper ──
+
+async fn post_results(
+    client: &reqwest::Client,
+    api_url: &str,
+    auth_token: &str,
+    scan_date: &str,
+    results: &[RepoScanResult],
+) {
+    let post_body = serde_json::json!({
+        "scan_date": scan_date,
+        "results": results,
+    });
+
+    match client
+        .post(format!("{}/api/index-results", api_url))
+        .header("Authorization", format!("Bearer {}", auth_token))
+        .json(&post_body)
+        .send()
+        .await
+    {
+        Ok(res) => {
+            let status = res.status();
+            let body: serde_json::Value = res.json().await.unwrap_or_default();
+            tracing::info!(
+                "Index results posted for {}: status={}, body={}",
+                scan_date,
+                status,
+                body
+            );
+        }
+        Err(e) => {
+            tracing::error!("Failed to post index results for {}: {}", scan_date, e);
+        }
+    }
+}
+
+// ── Date range helper ──
+
+fn generate_date_range(from: &str, to: &str) -> Option<Vec<String>> {
+    let start = chrono::NaiveDate::parse_from_str(from, "%Y-%m-%d").ok()?;
+    let end = chrono::NaiveDate::parse_from_str(to, "%Y-%m-%d").ok()?;
+    if start > end {
+        return None;
+    }
+    let mut dates = Vec::new();
+    let mut current = start;
+    while current <= end {
+        dates.push(current.format("%Y-%m-%d").to_string());
+        current += chrono::Duration::days(1);
+    }
+    Some(dates)
 }
 
 // ── Quarter helper ──
