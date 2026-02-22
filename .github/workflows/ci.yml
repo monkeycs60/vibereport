@@ -14,3 +14,25 @@ jobs:
       - run: cargo test
       - run: cargo clippy -- -D warnings
       - run: cargo fmt -- --check
+
+  deploy-vps:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Deploy to VPS
+        run: |
+          ssh ubuntu@vps-139a77b3.vps.ovh.net "\
+            source ~/.cargo/env && \
+            cd ~/vibereport && \
+            git pull && \
+            cargo build --release -p vps-worker 2>&1 && \
+            sudo systemctl restart vibereport-worker && \
+            echo 'Deploy OK'"

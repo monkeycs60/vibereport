@@ -16,6 +16,7 @@ Rust CLI tool. "The Spotify Wrapped for your code."
 - Run lints: `cargo clippy -- -D warnings`
 - Format: `cargo fmt` (applies to both CLI and vps-worker workspace)
 - **CI runs 3 checks** (`.github/workflows/ci.yml`): `cargo test`, `cargo clippy -- -D warnings`, `cargo fmt -- --check` — all must pass before merge
+- **Auto-deploy VPS**: CI deploys vps-worker to VPS after tests pass on master push (SSH via `VPS_SSH_KEY` + `VPS_KNOWN_HOSTS` secrets)
 - **IMPORTANT**: Always run `cargo fmt` before committing Rust changes — CI will reject unformatted code
 
 ## Architecture
@@ -77,7 +78,7 @@ Tools that do NOT sign commits (not detectable): Windsurf/Codeium, Copilot inlin
 - **VPS auth**: Bearer token (VPS_AUTH_TOKEN secret on CF Worker)
 - **Deploy API**: `cd web/api && npx wrangler deploy`
 - **Deploy frontend**: push to GitHub (Vercel auto-deploys from master)
-- **Deploy VPS**: ssh ubuntu@vps-139a77b3.vps.ovh.net, cd ~/vibereport, git pull, cargo build --release, sudo systemctl restart vibereport-worker
+- **Deploy VPS**: automatic on push to master (CI job `deploy-vps`). Manual: ssh ubuntu@vps-139a77b3.vps.ovh.net, cd ~/vibereport, git pull, cargo build --release, sudo systemctl restart vibereport-worker
 
 ## VPS Scan Worker
 - POST /scan — user web scans (semaphore: 2 concurrent)
