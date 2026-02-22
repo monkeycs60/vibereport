@@ -32,6 +32,7 @@ jobs:
           ssh ubuntu@vps-139a77b3.vps.ovh.net "\
             source ~/.cargo/env && \
             cd ~/vibereport && \
+            git checkout -- . && \
             git pull && \
             cargo build --release -p vps-worker 2>&1 && \
             sudo systemctl restart vibereport-worker && \
