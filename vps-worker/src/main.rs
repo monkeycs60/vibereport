@@ -158,7 +158,11 @@ async fn scan_handler(
 
 // FIX 2: Removed api_url from IndexScanRequest
 #[derive(Deserialize)]
-struct IndexScanRequest {}
+struct IndexScanRequest {
+    /// Optional list of scan dates (YYYY-MM-DD) to post results for.
+    /// If omitted, defaults to today's UTC date.
+    scan_dates: Option<Vec<String>>,
+}
 
 #[derive(serde::Serialize)]
 struct RepoScanResult {
@@ -172,7 +176,7 @@ struct RepoScanResult {
 async fn index_scan_handler(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
-    Json(_req): Json<IndexScanRequest>,
+    Json(req): Json<IndexScanRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     // Auth check (FIX 4: constant-time comparison)
     let auth = headers
@@ -183,6 +187,25 @@ async fn index_scan_handler(
     if auth.as_bytes().ct_eq(expected.as_bytes()).unwrap_u8() != 1 {
         return Err((StatusCode::UNAUTHORIZED, "Invalid token".into()));
     }
+
+    // Validate scan_dates if provided, otherwise default to today
+    let scan_dates: Vec<String> = if let Some(dates) = req.scan_dates {
+        for d in &dates {
+            if !SINCE_DATE_RE.is_match(d) {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    format!("Invalid scan_date format: {}, expected YYYY-MM-DD", d),
+                ));
+            }
+        }
+        if dates.is_empty() {
+            vec![chrono::Utc::now().format("%Y-%m-%d").to_string()]
+        } else {
+            dates
+        }
+    } else {
+        vec![chrono::Utc::now().format("%Y-%m-%d").to_string()]
+    };
 
     // FIX 2: Use api_url from state instead of request
     let api_url = state.api_url.clone();
@@ -229,6 +252,7 @@ async fn index_scan_handler(
     let auth_token = state.auth_token.clone();
     let vibereport_bin = state.vibereport_bin.clone();
     let state_clone = Arc::clone(&state);
+    let scan_dates_for_response = scan_dates.clone();
 
     tokio::spawn(async move {
         // Pass 1: normal timeouts (120s clone, 60s analysis)
@@ -282,34 +306,41 @@ async fn index_scan_handler(
             results.extend(retry_results);
         }
 
-        let scan_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
         tracing::info!(
-            "Index scan complete: {}/{} repos scanned, posting results",
+            "Index scan complete: {}/{} repos scanned, posting results for {} date(s)",
             results.len(),
-            repo_count
+            repo_count,
+            scan_dates.len()
         );
 
-        // Post results back to CF API
+        // Post results back to CF API for each scan_date
         let client = reqwest::Client::new();
-        let post_body = serde_json::json!({
-            "scan_date": scan_date,
-            "results": results,
-        });
+        for scan_date in &scan_dates {
+            let post_body = serde_json::json!({
+                "scan_date": scan_date,
+                "results": results,
+            });
 
-        match client
-            .post(format!("{}/api/index-results", api_url))
-            .header("Authorization", format!("Bearer {}", auth_token))
-            .json(&post_body)
-            .send()
-            .await
-        {
-            Ok(res) => {
-                let status = res.status();
-                let body: serde_json::Value = res.json().await.unwrap_or_default();
-                tracing::info!("Index results posted: status={}, body={}", status, body);
-            }
-            Err(e) => {
-                tracing::error!("Failed to post index results: {}", e);
+            match client
+                .post(format!("{}/api/index-results", api_url))
+                .header("Authorization", format!("Bearer {}", auth_token))
+                .json(&post_body)
+                .send()
+                .await
+            {
+                Ok(res) => {
+                    let status = res.status();
+                    let body: serde_json::Value = res.json().await.unwrap_or_default();
+                    tracing::info!(
+                        "Index results posted for {}: status={}, body={}",
+                        scan_date,
+                        status,
+                        body
+                    );
+                }
+                Err(e) => {
+                    tracing::error!("Failed to post index results for {}: {}", scan_date, e);
+                }
             }
         }
     });
@@ -318,6 +349,7 @@ async fn index_scan_handler(
         "status": "started",
         "repos": repo_count,
         "quarter": quarter,
+        "scan_dates": scan_dates_for_response,
     })))
 }
 
