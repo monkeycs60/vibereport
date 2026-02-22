@@ -260,14 +260,30 @@ fn check_single_branch(path: &Path) -> bool {
     if repo.shallow_commits().is_ok_and(|sc| sc.is_some()) {
         return false;
     }
-    let refs = repo.references();
-    match refs {
-        Ok(r) => {
-            let branch_count = r.local_branches().map(|iter| iter.count()).unwrap_or(0);
-            branch_count <= 1
-        }
-        Err(_) => false,
+    let refs = match repo.references() {
+        Ok(r) => r,
+        Err(_) => return false,
+    };
+    // Count local branches
+    let local_count = refs.local_branches().map(|iter| iter.count()).unwrap_or(0);
+    if local_count > 1 {
+        return false;
     }
+    // Also check remote branches — clones only create one local branch
+    // but remote-tracking refs reveal the true branch count
+    let refs2 = match repo.references() {
+        Ok(r) => r,
+        Err(_) => return local_count <= 1,
+    };
+    let remote_count = refs2
+        .remote_branches()
+        .map(|iter| iter.count())
+        .unwrap_or(0);
+    // If there are remote branches, use those to judge (subtract HEAD-like refs)
+    if remote_count > 1 {
+        return false;
+    }
+    local_count <= 1
 }
 
 #[cfg(test)]

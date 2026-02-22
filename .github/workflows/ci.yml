@@ -34,6 +34,6 @@ jobs:
             cd ~/vibereport && \
             git checkout -- . && \
             git pull && \
-            cargo build --release -p vps-worker 2>&1 && \
+            cargo build --release -p vps-worker -p vibereport 2>&1 && \
             sudo systemctl restart vibereport-worker && \
             echo 'Deploy OK'"
