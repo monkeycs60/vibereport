@@ -231,19 +231,56 @@ async fn index_scan_handler(
     let state_clone = Arc::clone(&state);
 
     tokio::spawn(async move {
-        let results: Vec<RepoScanResult> = stream::iter(repos)
+        // Pass 1: normal timeouts (120s clone, 60s analysis)
+        let scanned: Vec<(String, Option<RepoScanResult>)> = stream::iter(repos)
             .map(|slug| {
                 let sem = &state_clone.index_semaphore;
                 let bin = vibereport_bin.clone();
                 async move {
                     let _permit = sem.acquire().await.ok()?;
-                    scan_single_repo(&slug, &bin).await
+                    let result = scan_single_repo(&slug, &bin, 120, 60).await;
+                    Some((slug, result))
                 }
             })
             .buffer_unordered(3)
             .filter_map(|r| async { r })
             .collect()
             .await;
+
+        let mut results: Vec<RepoScanResult> = Vec::new();
+        let mut failed_slugs: Vec<String> = Vec::new();
+        for (slug, result) in scanned {
+            match result {
+                Some(r) => results.push(r),
+                None => failed_slugs.push(slug),
+            }
+        }
+
+        // Pass 2: retry failed repos with doubled timeouts (240s clone, 120s analysis)
+        if !failed_slugs.is_empty() {
+            tracing::info!(
+                "Retrying {}/{} failed repos with extended timeouts",
+                failed_slugs.len(),
+                repo_count
+            );
+
+            let retry_results: Vec<RepoScanResult> = stream::iter(failed_slugs)
+                .map(|slug| {
+                    let sem = &state_clone.index_semaphore;
+                    let bin = vibereport_bin.clone();
+                    async move {
+                        let _permit = sem.acquire().await.ok()?;
+                        scan_single_repo(&slug, &bin, 240, 120).await
+                    }
+                })
+                .buffer_unordered(3)
+                .filter_map(|r| async { r })
+                .collect()
+                .await;
+
+            tracing::info!("Retry recovered {} repos", retry_results.len());
+            results.extend(retry_results);
+        }
 
         let scan_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
         tracing::info!(
@@ -286,21 +323,30 @@ async fn index_scan_handler(
 
 // ── Single repo scanner for index ──
 
-async fn scan_single_repo(slug: &str, vibereport_bin: &str) -> Option<RepoScanResult> {
+async fn scan_single_repo(
+    slug: &str,
+    vibereport_bin: &str,
+    clone_timeout_secs: u64,
+    analyze_timeout_secs: u64,
+) -> Option<RepoScanResult> {
     let uuid = Uuid::new_v4().to_string();
     let tmp_dir = format!("/tmp/vibereport-idx-{}", uuid);
     let repo_url = format!("https://github.com/{}.git", slug);
 
-    // Clone with 120s timeout (some data repos are multi-GB)
     let clone_fut = tokio::process::Command::new("git")
         .args(["clone", "--shallow-since=2026-01-01", &repo_url, &tmp_dir])
         .output();
 
-    let clone = match tokio::time::timeout(std::time::Duration::from_secs(120), clone_fut).await {
+    let clone = match tokio::time::timeout(
+        std::time::Duration::from_secs(clone_timeout_secs),
+        clone_fut,
+    )
+    .await
+    {
         Ok(result) => result.ok()?,
         Err(_) => {
             let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
-            tracing::warn!("Clone timed out for {}", slug);
+            tracing::warn!("Clone timed out for {} ({}s)", slug, clone_timeout_secs);
             return None;
         }
     };
@@ -311,17 +357,24 @@ async fn scan_single_repo(slug: &str, vibereport_bin: &str) -> Option<RepoScanRe
         return None;
     }
 
-    // Analyze with 60s timeout
     let analyze_fut = tokio::process::Command::new(vibereport_bin)
         .args([&tmp_dir, "--json", "--since", "2026-01-01", "--no-share"])
         .output();
 
-    let analyze = match tokio::time::timeout(std::time::Duration::from_secs(60), analyze_fut).await
+    let analyze = match tokio::time::timeout(
+        std::time::Duration::from_secs(analyze_timeout_secs),
+        analyze_fut,
+    )
+    .await
     {
         Ok(result) => result.ok()?,
         Err(_) => {
             let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
-            tracing::warn!("Analysis timed out for {}", slug);
+            tracing::warn!(
+                "Analysis timed out for {} ({}s)",
+                slug,
+                analyze_timeout_secs
+            );
             return None;
         }
     };
