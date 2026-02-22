@@ -288,8 +288,7 @@ async fn index_scan_handler(
     let is_backfill = scan_dates.len() > 1;
 
     tokio::spawn(async move {
-        // Scan all repos (pass 1 + pass 2 retry).
-        // In backfill mode, use scan_single_repo_daily to get per-day breakdown.
+        // Scan all repos in a single pass (no retry — shallow-since failures are deterministic).
         let scanned: Vec<(String, Option<serde_json::Value>)> = stream::iter(repos)
             .map(|slug| {
                 let sem = &state_clone.index_semaphore;
@@ -300,51 +299,25 @@ async fn index_scan_handler(
                     Some((slug, result))
                 }
             })
-            .buffer_unordered(3)
+            .buffer_unordered(10)
             .filter_map(|r| async { r })
             .collect()
             .await;
 
         let mut raw_results: Vec<(String, serde_json::Value)> = Vec::new();
-        let mut failed_slugs: Vec<String> = Vec::new();
+        let mut failed = 0u64;
         for (slug, result) in scanned {
             match result {
                 Some(data) => raw_results.push((slug, data)),
-                None => failed_slugs.push(slug),
+                None => failed += 1,
             }
         }
 
-        // Pass 2: retry failed repos with doubled timeouts
-        if !failed_slugs.is_empty() {
-            tracing::info!(
-                "Retrying {}/{} failed repos with extended timeouts",
-                failed_slugs.len(),
-                repo_count
-            );
-
-            let retry_results: Vec<(String, serde_json::Value)> = stream::iter(failed_slugs)
-                .map(|slug| {
-                    let sem = &state_clone.index_semaphore;
-                    let bin = vibereport_bin.clone();
-                    async move {
-                        let _permit = sem.acquire().await.ok()?;
-                        let data = scan_single_repo_raw(&slug, &bin, 240, 120).await?;
-                        Some((slug, data))
-                    }
-                })
-                .buffer_unordered(3)
-                .filter_map(|r| async { r })
-                .collect()
-                .await;
-
-            tracing::info!("Retry recovered {} repos", retry_results.len());
-            raw_results.extend(retry_results);
-        }
-
         tracing::info!(
-            "Index scan complete: {}/{} repos scanned, posting results for {} date(s)",
+            "Index scan complete: {}/{} repos scanned ({} failed), posting results for {} date(s)",
             raw_results.len(),
             repo_count,
+            failed,
             scan_dates.len()
         );
 
@@ -430,7 +403,7 @@ async fn scan_single_repo_raw(
     let repo_url = format!("https://github.com/{}.git", slug);
 
     let clone_fut = tokio::process::Command::new("git")
-        .args(["clone", "--shallow-since=2026-01-01", &repo_url, &tmp_dir])
+        .args(["clone", "--bare", "--shallow-since=2026-01-01", &repo_url, &tmp_dir])
         .output();
 
     let clone = match tokio::time::timeout(
@@ -563,7 +536,7 @@ async fn main() {
 
     let state = Arc::new(AppState {
         user_semaphore: Semaphore::new(2),
-        index_semaphore: Semaphore::new(3),
+        index_semaphore: Semaphore::new(10),
         auth_token,
         vibereport_bin,
         api_url,
