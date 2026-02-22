@@ -344,13 +344,16 @@ const apiUrl = getApiUrl();
       }
 
       // Good things (invert: show green pills for what's NOT in badges)
+      // Only show green badges when scan had filesystem access (VPS or CLI)
+      // GitHub API fallback can't detect these, so absence doesn't mean presence
+      const hasBadgeData = report.scan_source !== 'web_github';
       if (report.has_tests && !badges.includes('no-tests')) {
         breakdown.push({ label: 'Has Tests', pts: 0, bad: false });
       }
-      if (!badges.includes('no-linting') && badges.length > 0) {
+      if (!badges.includes('no-linting') && hasBadgeData) {
         breakdown.push({ label: 'Has Linting', pts: 0, bad: false });
       }
-      if (!badges.includes('no-ci-cd') && badges.length > 0) {
+      if (!badges.includes('no-ci-cd') && hasBadgeData) {
         breakdown.push({ label: 'Has CI/CD', pts: 0, bad: false });
       }
 
