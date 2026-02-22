@@ -81,6 +81,7 @@ const CI_CONFIGS: &[&str] = &[
 
 const AI_CONFIGS: &[&str] = &[
     ".claude",
+    "CLAUDE.md",
     ".cursorrules",
     "cursor.json",
     ".cursor",
@@ -92,7 +93,8 @@ const AI_CONFIGS: &[&str] = &[
 ];
 
 pub fn detect_vibe(path: &Path, ai_ratio: f64) -> VibeInfo {
-    let no_linting = !LINT_CONFIGS.iter().any(|f| path.join(f).exists());
+    let has_lint_config = LINT_CONFIGS.iter().any(|f| path.join(f).exists());
+    let no_linting = !has_lint_config && !has_clippy_in_ci(path);
     let no_ci_cd = !CI_CONFIGS.iter().any(|f| path.join(f).exists());
     let boomer_ai = ai_ratio > 0.0 && !AI_CONFIGS.iter().any(|f| path.join(f).exists());
 
@@ -226,11 +228,38 @@ fn count_todos_recursive(path: &Path, skip_dirs: &[&str], count: &mut usize, dep
     }
 }
 
+/// Check if any CI workflow file mentions clippy (Rust linter).
+fn has_clippy_in_ci(path: &Path) -> bool {
+    let workflows_dir = path.join(".github/workflows");
+    if !workflows_dir.is_dir() {
+        return false;
+    }
+    let entries = match std::fs::read_dir(&workflows_dir) {
+        Ok(e) => e,
+        Err(_) => return false,
+    };
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.extension().is_some_and(|e| e == "yml" || e == "yaml") {
+            if let Ok(content) = std::fs::read_to_string(&p) {
+                if content.contains("clippy") {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 fn check_single_branch(path: &Path) -> bool {
     let repo = match gix::open(path) {
         Ok(r) => r,
         Err(_) => return false,
     };
+    // Shallow clones only have one branch — skip to avoid false positive
+    if repo.shallow_commits().is_ok_and(|sc| sc.is_some()) {
+        return false;
+    }
     let refs = repo.references();
     match refs {
         Ok(r) => {

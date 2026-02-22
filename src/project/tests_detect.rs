@@ -48,7 +48,86 @@ pub fn detect_tests(path: &Path) -> TestsInfo {
         }
     }
 
+    // For Rust: check for inline #[test] or #[cfg(test)] in .rs files
+    if path.join("Cargo.toml").exists() && !info.has_tests && has_rust_inline_tests(path) {
+        info.has_tests = true;
+        info.test_files_count = info.test_files_count.max(count_rs_test_files(path));
+        if !info.frameworks.contains(&"cargo test".to_string()) {
+            info.frameworks.push("cargo test".to_string());
+        }
+    }
+
     info
+}
+
+/// Check if any .rs file contains #[test] or #[cfg(test)] (scan src/ up to 50 files).
+fn has_rust_inline_tests(path: &Path) -> bool {
+    let src_dir = path.join("src");
+    if !src_dir.is_dir() {
+        return false;
+    }
+    let mut found = false;
+    scan_rs_for_tests(&src_dir, &mut found, 0);
+    found
+}
+
+fn scan_rs_for_tests(path: &Path, found: &mut bool, depth: usize) {
+    if *found || depth > 5 {
+        return;
+    }
+    let entries = match std::fs::read_dir(path) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        if *found {
+            return;
+        }
+        let p = entry.path();
+        if p.is_dir() {
+            scan_rs_for_tests(&p, found, depth + 1);
+        } else if p.extension().is_some_and(|e| e == "rs") {
+            if let Ok(content) = std::fs::read_to_string(&p) {
+                if content.contains("#[test]") || content.contains("#[cfg(test)]") {
+                    *found = true;
+                    return;
+                }
+            }
+        }
+    }
+}
+
+/// Count .rs files that contain #[test] in src/.
+fn count_rs_test_files(path: &Path) -> usize {
+    let src_dir = path.join("src");
+    if !src_dir.is_dir() {
+        return 0;
+    }
+    let mut count = 0;
+    count_rs_test_files_recursive(&src_dir, &mut count, 0);
+    count
+}
+
+fn count_rs_test_files_recursive(path: &Path, count: &mut usize, depth: usize) {
+    if depth > 5 {
+        return;
+    }
+    let entries = match std::fs::read_dir(path) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_dir() {
+            count_rs_test_files_recursive(&p, count, depth + 1);
+        } else if p.extension().is_some_and(|e| e == "rs") {
+            if let Ok(content) = std::fs::read_to_string(&p) {
+                if content.contains("#[test]") {
+                    *count += 1;
+                }
+            }
+        }
+    }
 }
 
 fn count_files_recursive(path: &Path) -> usize {
