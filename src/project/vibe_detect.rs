@@ -38,17 +38,34 @@ pub struct VibeInfo {
 }
 
 const LINT_CONFIGS: &[&str] = &[
-    ".eslintrc", ".eslintrc.js", ".eslintrc.cjs", ".eslintrc.json", ".eslintrc.yml",
-    "eslint.config.js", "eslint.config.mjs", "eslint.config.ts",
-    ".prettierrc", ".prettierrc.js", ".prettierrc.json", ".prettierrc.yml",
-    "prettier.config.js", "prettier.config.mjs",
-    "biome.json", "biome.jsonc",
-    "deno.json", "deno.jsonc",
+    ".eslintrc",
+    ".eslintrc.js",
+    ".eslintrc.cjs",
+    ".eslintrc.json",
+    ".eslintrc.yml",
+    "eslint.config.js",
+    "eslint.config.mjs",
+    "eslint.config.ts",
+    ".prettierrc",
+    ".prettierrc.js",
+    ".prettierrc.json",
+    ".prettierrc.yml",
+    "prettier.config.js",
+    "prettier.config.mjs",
+    "biome.json",
+    "biome.jsonc",
+    "deno.json",
+    "deno.jsonc",
     ".oxlintrc.json",
-    "rustfmt.toml", ".rustfmt.toml",
+    "rustfmt.toml",
+    ".rustfmt.toml",
     ".rubocop.yml",
-    "pylintrc", ".pylintrc", ".flake8", "pyproject.toml",  // pyproject checked for [tool.ruff] later
-    ".golangci.yml", ".golangci.yaml",
+    "pylintrc",
+    ".pylintrc",
+    ".flake8",
+    "pyproject.toml", // pyproject checked for [tool.ruff] later
+    ".golangci.yml",
+    ".golangci.yaml",
 ];
 
 const CI_CONFIGS: &[&str] = &[
@@ -128,7 +145,18 @@ fn check_gitignore(path: &Path) -> bool {
 
 fn count_todos(path: &Path) -> usize {
     let mut count = 0;
-    let skip_dirs = ["node_modules", "target", ".git", "dist", "build", ".next", "vendor", "__pycache__", ".venv", "venv"];
+    let skip_dirs = [
+        "node_modules",
+        "target",
+        ".git",
+        "dist",
+        "build",
+        ".next",
+        "vendor",
+        "__pycache__",
+        ".venv",
+        "venv",
+    ];
     count_todos_recursive(path, &skip_dirs, &mut count, 0);
     count
 }
@@ -138,7 +166,9 @@ fn count_todos(path: &Path) -> usize {
 const MAX_FILE_SIZE: u64 = 1_048_576;
 
 fn count_todos_recursive(path: &Path, skip_dirs: &[&str], count: &mut usize, depth: usize) {
-    if depth > 10 || *count > 100 { return; } // early exit
+    if depth > 10 || *count > 100 {
+        return;
+    } // early exit
     let entries = match std::fs::read_dir(path) {
         Ok(e) => e,
         Err(_) => return,
@@ -153,7 +183,26 @@ fn count_todos_recursive(path: &Path, skip_dirs: &[&str], count: &mut usize, dep
         } else if is_regular_file(&p) {
             if let Some(ext) = p.extension() {
                 let ext = ext.to_string_lossy();
-                if matches!(ext.as_ref(), "rs" | "ts" | "js" | "py" | "go" | "rb" | "java" | "tsx" | "jsx" | "vue" | "svelte" | "php" | "swift" | "kt" | "c" | "cpp" | "cs" | "h") {
+                if matches!(
+                    ext.as_ref(),
+                    "rs" | "ts"
+                        | "js"
+                        | "py"
+                        | "go"
+                        | "rb"
+                        | "java"
+                        | "tsx"
+                        | "jsx"
+                        | "vue"
+                        | "svelte"
+                        | "php"
+                        | "swift"
+                        | "kt"
+                        | "c"
+                        | "cpp"
+                        | "cs"
+                        | "h"
+                ) {
                     // Skip files larger than 1 MB to avoid OOM
                     if let Ok(meta) = std::fs::metadata(&p) {
                         if meta.len() > MAX_FILE_SIZE {
@@ -163,7 +212,10 @@ fn count_todos_recursive(path: &Path, skip_dirs: &[&str], count: &mut usize, dep
                     if let Ok(content) = std::fs::read_to_string(&p) {
                         for line in content.lines() {
                             let upper = line.to_uppercase();
-                            if upper.contains("TODO") || upper.contains("FIXME") || upper.contains("HACK") {
+                            if upper.contains("TODO")
+                                || upper.contains("FIXME")
+                                || upper.contains("HACK")
+                            {
                                 *count += 1;
                             }
                         }
@@ -182,9 +234,7 @@ fn check_single_branch(path: &Path) -> bool {
     let refs = repo.references();
     match refs {
         Ok(r) => {
-            let branch_count = r.local_branches()
-                .map(|iter| iter.count())
-                .unwrap_or(0);
+            let branch_count = r.local_branches().map(|iter| iter.count()).unwrap_or(0);
             branch_count <= 1
         }
         Err(_) => false,
@@ -267,7 +317,11 @@ mod tests {
     #[test]
     fn proper_gitignore_passes() {
         let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join(".gitignore"), "node_modules\ntarget\n.env\ndist\n").unwrap();
+        fs::write(
+            dir.path().join(".gitignore"),
+            "node_modules\ntarget\n.env\ndist\n",
+        )
+        .unwrap();
         let info = detect_vibe(dir.path(), 0.0);
         assert!(!info.no_gitignore);
     }

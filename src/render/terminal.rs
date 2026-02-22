@@ -121,6 +121,13 @@ pub fn render_with_name(
     separator();
     blank();
 
+    // ── Score Breakdown ──
+    if !score.breakdown.is_empty() {
+        section("SCORE BREAKDOWN");
+        render_breakdown_pills(&score.breakdown);
+        blank();
+    }
+
     // ── Score ──
     score_line(&score.grade, score.points);
     blank();
@@ -574,6 +581,69 @@ fn render_timeline_chart(timeline: &[MonthlyStats]) {
         " ".repeat(labels_rp),
         "\u{2502}".cyan(),
     );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Score breakdown pills
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+fn render_breakdown_pills(factors: &[crate::score::calculator::ScoreFactor]) {
+    let ml = 3_usize; // left margin
+    let mr = 2_usize; // right margin
+    let gap = 2_usize; // gap between pills
+
+    let mut line_pills: Vec<String> = Vec::new();
+    let mut line_width: usize = ml;
+
+    for factor in factors {
+        let pill = format!("{} +{}", factor.label, factor.points);
+        let pill_dw = display_width(&pill);
+
+        // Check if pill fits on current line
+        let needed = if line_pills.is_empty() {
+            pill_dw
+        } else {
+            gap + pill_dw
+        };
+
+        if line_width + needed + mr > W && !line_pills.is_empty() {
+            // Flush current line
+            let content: String = line_pills.join("  ");
+            let content_dw = ml + display_width(&content) + mr;
+            let rp = W.saturating_sub(content_dw);
+            println!(
+                "  {}{}{}{}{}",
+                "\u{2502}".cyan(),
+                " ".repeat(ml),
+                content.yellow(),
+                " ".repeat(rp),
+                "\u{2502}".cyan(),
+            );
+            line_pills.clear();
+            line_width = ml;
+        }
+
+        if !line_pills.is_empty() {
+            line_width += gap;
+        }
+        line_width += pill_dw;
+        line_pills.push(pill);
+    }
+
+    // Flush remaining pills
+    if !line_pills.is_empty() {
+        let content: String = line_pills.join("  ");
+        let content_dw = ml + display_width(&content) + mr;
+        let rp = W.saturating_sub(content_dw);
+        println!(
+            "  {}{}{}{}{}",
+            "\u{2502}".cyan(),
+            " ".repeat(ml),
+            content.yellow(),
+            " ".repeat(rp),
+            "\u{2502}".cyan(),
+        );
+    }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -219,8 +219,9 @@ const apiUrl = getApiUrl();
       gradeText.textContent = report.grade;
       gradeText.style.color = color;
 
-      // Roast
-      document.getElementById('rpt-roast').textContent = `"${getScoreRoast(report.score)}"`;
+      // Roast (prefer contextual roast from CLI, fallback to score-based)
+      const roast = report.roast || getScoreRoast(report.score);
+      document.getElementById('rpt-roast').textContent = `"${roast}"`;
 
 
       // Languages

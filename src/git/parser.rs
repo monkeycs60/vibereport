@@ -183,15 +183,27 @@ mod tests {
 
         let six_months = parse_since("6m").unwrap();
         let diff = (now - six_months).num_days();
-        assert!((diff - 180).abs() <= 1, "6m should be ~180 days ago, got {}", diff);
+        assert!(
+            (diff - 180).abs() <= 1,
+            "6m should be ~180 days ago, got {}",
+            diff
+        );
 
         let one_year = parse_since("1y").unwrap();
         let diff = (now - one_year).num_days();
-        assert!((diff - 365).abs() <= 1, "1y should be ~365 days ago, got {}", diff);
+        assert!(
+            (diff - 365).abs() <= 1,
+            "1y should be ~365 days ago, got {}",
+            diff
+        );
 
         let two_years = parse_since("2y").unwrap();
         let diff = (now - two_years).num_days();
-        assert!((diff - 730).abs() <= 1, "2y should be ~730 days ago, got {}", diff);
+        assert!(
+            (diff - 730).abs() <= 1,
+            "2y should be ~730 days ago, got {}",
+            diff
+        );
     }
 
     #[test]

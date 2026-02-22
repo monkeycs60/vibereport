@@ -106,6 +106,7 @@ mod tests {
                 points: score_points,
                 roast: "Test roast".to_string(),
                 ai_ratio,
+                breakdown: vec![],
             },
         }
     }

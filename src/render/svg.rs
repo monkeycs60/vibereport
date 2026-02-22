@@ -566,6 +566,7 @@ mod tests {
             points: 65,
             roast: "Your code writes itself... literally.".to_string(),
             ai_ratio,
+            breakdown: vec![],
         }
     }
 
@@ -615,6 +616,7 @@ mod tests {
             points: 12,
             roast: "All human, all the time.".to_string(),
             ai_ratio: 0.0,
+            breakdown: vec![],
         };
         let svg = render_svg(&git, &project, &score, "human-repo");
 

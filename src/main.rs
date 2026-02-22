@@ -152,6 +152,17 @@ fn output_report(
             })
             .collect();
 
+        let score_breakdown: Vec<serde_json::Value> = vibe_score
+            .breakdown
+            .iter()
+            .map(|f| {
+                serde_json::json!({
+                    "label": f.label,
+                    "points": f.points,
+                })
+            })
+            .collect();
+
         let output = serde_json::json!({
             "repo": repo_name,
             "ai_ratio": vibe_score.ai_ratio,
@@ -160,6 +171,7 @@ fn output_report(
             "vibe_score": vibe_score.points,
             "grade": vibe_score.grade,
             "roast": vibe_score.roast,
+            "score_breakdown": score_breakdown,
             "total_commits": git_stats.total_commits,
             "ai_commits": git_stats.ai_commits,
             "human_commits": git_stats.human_commits,
@@ -280,8 +292,7 @@ fn share_report(
     if project_stats.vibe.mega_commit {
         badges.push("mega-commit");
     }
-    let chaos_badges_json =
-        serde_json::to_string(&badges).unwrap_or_else(|_| "[]".into());
+    let chaos_badges_json = serde_json::to_string(&badges).unwrap_or_else(|_| "[]".into());
 
     let payload = share::upload::ReportPayload {
         github_username,

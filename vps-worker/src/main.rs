@@ -92,7 +92,6 @@ async fn scan_handler(
     let clone_result = tokio::process::Command::new("git")
         .args([
             "clone",
-            "--bare",
             &format!("--shallow-since={}", since),
             &repo_url,
             &tmp_dir,
@@ -294,13 +293,7 @@ async fn scan_single_repo(slug: &str, vibereport_bin: &str) -> Option<RepoScanRe
 
     // Clone with 120s timeout (some data repos are multi-GB)
     let clone_fut = tokio::process::Command::new("git")
-        .args([
-            "clone",
-            "--bare",
-            "--shallow-since=2026-01-01",
-            &repo_url,
-            &tmp_dir,
-        ])
+        .args(["clone", "--shallow-since=2026-01-01", &repo_url, &tmp_dir])
         .output();
 
     let clone = match tokio::time::timeout(std::time::Duration::from_secs(120), clone_fut).await {
