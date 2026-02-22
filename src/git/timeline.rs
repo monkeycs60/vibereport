@@ -16,6 +16,13 @@ pub struct MonthlyStats {
     pub ai_ratio: f64,
 }
 
+#[derive(Debug, Clone)]
+pub struct DailyStats {
+    pub date: String, // "YYYY-MM-DD"
+    pub total_commits: usize,
+    pub ai_commits: usize,
+}
+
 /// Group commits by month and compute AI ratio per month.
 /// Returns sorted by date (oldest first).
 pub fn build_timeline(commits: &[CommitInfo]) -> Vec<MonthlyStats> {
@@ -48,6 +55,34 @@ pub fn build_timeline(commits: &[CommitInfo]) -> Vec<MonthlyStats> {
                 human_commits: human,
                 ai_ratio,
             }
+        })
+        .collect()
+}
+
+/// Group commits by day. Returns sorted oldest-first.
+/// Each entry shows commits on that specific day (not cumulative).
+pub fn build_daily_timeline(commits: &[CommitInfo]) -> Vec<DailyStats> {
+    let mut buckets: BTreeMap<(i32, u32, u32), (usize, usize)> = BTreeMap::new();
+
+    for commit in commits {
+        let key = (
+            commit.timestamp.year(),
+            commit.timestamp.month(),
+            commit.timestamp.day(),
+        );
+        let entry = buckets.entry(key).or_insert((0, 0));
+        entry.0 += 1;
+        if commit.ai_tool != AiTool::Human {
+            entry.1 += 1;
+        }
+    }
+
+    buckets
+        .into_iter()
+        .map(|((y, m, d), (total, ai))| DailyStats {
+            date: format!("{:04}-{:02}-{:02}", y, m, d),
+            total_commits: total,
+            ai_commits: ai,
         })
         .collect()
 }

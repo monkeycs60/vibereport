@@ -163,6 +163,18 @@ fn output_report(
             })
             .collect();
 
+        let daily_commits: Vec<serde_json::Value> =
+            git::timeline::build_daily_timeline(&git_stats.commits)
+                .iter()
+                .map(|d| {
+                    serde_json::json!({
+                        "date": d.date,
+                        "total": d.total_commits,
+                        "ai": d.ai_commits,
+                    })
+                })
+                .collect();
+
         let output = serde_json::json!({
             "repo": repo_name,
             "ai_ratio": vibe_score.ai_ratio,
@@ -176,6 +188,7 @@ fn output_report(
             "ai_commits": git_stats.ai_commits,
             "human_commits": git_stats.human_commits,
             "ai_tools": ai_tools,
+            "daily_commits": daily_commits,
             "deps": {
                 "total": project_stats.deps.total,
                 "manager": project_stats.deps.manager,
