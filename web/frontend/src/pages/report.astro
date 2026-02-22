@@ -224,7 +224,7 @@ const apiUrl = getApiUrl();
       document.getElementById('rpt-roast').textContent = `"${roast}"`;
 
 
-      // Languages
+      // Languages (values are raw line counts, not percentages)
       const langs = Object.entries(report.languages || {})
         .sort(([, a], [, b]) => b - a)
         .slice(0, 8);
@@ -232,10 +232,11 @@ const apiUrl = getApiUrl();
         document.getElementById('rpt-langs-section').classList.remove('hidden');
         const container = document.getElementById('rpt-langs');
         const hexColorRe = /^#[0-9a-fA-F]{6}$/;
-        langs.forEach(([lang, pct]) => {
+        const totalLines = report.total_lines || langs.reduce((s, [, v]) => s + Number(v), 0) || 1;
+        langs.forEach(([lang, lineCount]) => {
           const rawColor = langColors[lang] || '#565f89';
           const lc = hexColorRe.test(rawColor) ? rawColor : '#565f89';
-          const safePct = Math.min(Math.max(Math.round(Number(pct) || 0), 0), 100);
+          const safePct = Math.min(Math.max(Math.round((Number(lineCount) / totalLines) * 100), 0), 100);
 
           const row = document.createElement('div');
           row.className = 'flex items-center gap-3';

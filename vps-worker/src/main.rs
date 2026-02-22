@@ -403,7 +403,13 @@ async fn scan_single_repo_raw(
     let repo_url = format!("https://github.com/{}.git", slug);
 
     let clone_fut = tokio::process::Command::new("git")
-        .args(["clone", "--bare", "--shallow-since=2026-01-01", &repo_url, &tmp_dir])
+        .args([
+            "clone",
+            "--bare",
+            "--shallow-since=2026-01-01",
+            &repo_url,
+            &tmp_dir,
+        ])
         .output();
 
     let clone = match tokio::time::timeout(

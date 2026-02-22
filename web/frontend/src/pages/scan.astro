@@ -283,15 +283,16 @@ const apiUrl = getApiUrl();
       const badgesEl = document.getElementById('result-badges');
       renderBadges(badgesEl, data.chaos_badges || []);
 
-      // Languages
+      // Languages (values are raw line counts, not percentages)
       const langsEl = document.getElementById('result-langs');
       langsEl.innerHTML = '';
       const hexColorRe = /^#[0-9a-fA-F]{6}$/;
       if (data.languages) {
-        Object.entries(data.languages)
+        const langEntries = Object.entries(data.languages)
           .sort(([, a], [, b]) => b - a)
-          .slice(0, 5)
-          .forEach(([lang, pct]) => {
+          .slice(0, 5);
+        const totalLines = data.total_lines || langEntries.reduce((s, [, v]) => s + Number(v), 0) || 1;
+        langEntries.forEach(([lang, lineCount]) => {
             const chip = document.createElement('span');
             chip.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-[#1a1b26]/80 text-[#565f89] border border-[#3b4261]/30';
             const rawColor = langColors[lang] || '#565f89';
@@ -300,7 +301,8 @@ const apiUrl = getApiUrl();
             dot.className = 'w-2 h-2 rounded-full flex-shrink-0';
             dot.style.background = color;
             chip.appendChild(dot);
-            const label = document.createTextNode(lang + ' ' + Math.round(pct) + '%');
+            const pct = Math.round((Number(lineCount) / totalLines) * 100);
+            const label = document.createTextNode(lang + ' ' + pct + '%');
             chip.appendChild(label);
             langsEl.appendChild(chip);
           });

@@ -213,11 +213,7 @@ fn count_todos_recursive(path: &Path, skip_dirs: &[&str], count: &mut usize, dep
                     }
                     if let Ok(content) = std::fs::read_to_string(&p) {
                         for line in content.lines() {
-                            let upper = line.to_uppercase();
-                            if upper.contains("TODO")
-                                || upper.contains("FIXME")
-                                || upper.contains("HACK")
-                            {
+                            if has_todo_keyword(line) {
                                 *count += 1;
                             }
                         }
@@ -226,6 +222,38 @@ fn count_todos_recursive(path: &Path, skip_dirs: &[&str], count: &mut usize, dep
             }
         }
     }
+}
+
+/// Check if a line contains TODO, FIXME, or HACK as a standalone word
+/// (not part of an identifier like `todo_flood` or `count_todos`).
+fn has_todo_keyword(line: &str) -> bool {
+    let upper = line.to_uppercase();
+    let bytes = upper.as_bytes();
+    for keyword in &["TODO", "FIXME", "HACK"] {
+        let kw = keyword.as_bytes();
+        let mut start = 0;
+        while start + kw.len() <= bytes.len() {
+            if let Some(pos) = upper[start..].find(keyword) {
+                let abs = start + pos;
+                let before_ok = abs == 0 || {
+                    let c = bytes[abs - 1];
+                    !c.is_ascii_alphanumeric() && c != b'_'
+                };
+                let after = abs + kw.len();
+                let after_ok = after >= bytes.len() || {
+                    let c = bytes[after];
+                    !c.is_ascii_alphanumeric() && c != b'_'
+                };
+                if before_ok && after_ok {
+                    return true;
+                }
+                start = abs + 1;
+            } else {
+                break;
+            }
+        }
+    }
+    false
 }
 
 /// Check if any CI workflow file mentions clippy (Rust linter).
@@ -384,5 +412,18 @@ mod tests {
         fs::write(dir.path().join("README.md"), "# Hello").unwrap();
         let info = detect_vibe(dir.path(), 0.0);
         assert!(!info.no_readme);
+    }
+
+    #[test]
+    fn todo_keyword_word_boundary() {
+        // Real TODO comments
+        assert!(has_todo_keyword("// TODO: fix this"));
+        assert!(has_todo_keyword("# FIXME broken"));
+        assert!(has_todo_keyword("/* HACK */"));
+        assert!(has_todo_keyword("TODO"));
+        // Not part of identifiers
+        assert!(!has_todo_keyword("let todo_count = 5;"));
+        assert!(!has_todo_keyword("count_todos_recursive(path)"));
+        assert!(!has_todo_keyword("pub todo_flood: bool"));
     }
 }
