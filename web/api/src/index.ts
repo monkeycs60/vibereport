@@ -903,10 +903,6 @@ app.post('/api/index-results', async (c) => {
   }
 
   // Insert individual scan results
-  let totalRepos = 0
-  let totalCommits = 0
-  let totalAiCommits = 0
-
   for (const r of body.results) {
     await db.prepare(
       `INSERT INTO index_scans (repo_slug, scan_date, total_commits, ai_commits)
@@ -915,14 +911,29 @@ app.post('/api/index-results', async (c) => {
          total_commits = excluded.total_commits,
          ai_commits = excluded.ai_commits`
     ).bind(r.repo_slug, scanDate, r.total_commits, r.ai_commits).run()
-    totalRepos++
-    totalCommits += r.total_commits
-    totalAiCommits += r.ai_commits
   }
 
-  // Compute and store snapshot
-  const aiPercent = totalCommits > 0 ? (totalAiCommits / totalCommits) * 100 : 0
+  // Compute snapshot from latest scan per repo in the panel (not just today's batch).
+  // This prevents incomplete scans (timeouts, failures) from skewing the aggregate down.
   const quarter = getCurrentQuarter()
+
+  const agg = await db.prepare(
+    `SELECT COUNT(*) as total_repos,
+            SUM(s.total_commits) as total_commits,
+            SUM(s.ai_commits) as total_ai_commits
+     FROM index_scans s
+     INNER JOIN (
+       SELECT repo_slug, MAX(scan_date) as max_date
+       FROM index_scans
+       WHERE repo_slug IN (SELECT repo_slug FROM index_panel WHERE quarter = ?)
+       GROUP BY repo_slug
+     ) latest ON s.repo_slug = latest.repo_slug AND s.scan_date = latest.max_date`
+  ).bind(quarter).first<{ total_repos: number; total_commits: number; total_ai_commits: number }>()
+
+  const totalRepos = agg?.total_repos ?? 0
+  const totalCommits = agg?.total_commits ?? 0
+  const totalAiCommits = agg?.total_ai_commits ?? 0
+  const aiPercent = totalCommits > 0 ? (totalAiCommits / totalCommits) * 100 : 0
 
   await db.prepare(
     `INSERT INTO index_snapshots (snapshot_date, quarter, total_repos, total_commits, total_ai_commits, ai_percent)
