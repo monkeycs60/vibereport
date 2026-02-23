@@ -355,7 +355,7 @@ app.post('/api/reports', async (c) => {
 
   return c.json({
     id: reportId,
-    url: `https://www.vibereport.dev/r/${reportId}`,
+    url: `https://www.vibereport.dev/report?id=${reportId}`,
     rank,
     percentile: Math.round(percentile * 10) / 10,
   })
@@ -418,7 +418,7 @@ app.post('/api/scan', async (c) => {
       roast: cached.roast,
       chaos_badges: chaosBadges,
       scan_source: cached.scan_source || 'cached',
-      url: `https://www.vibereport.dev/r/${cached.id}`,
+      url: `https://www.vibereport.dev/report?id=${cached.id}`,
     })
   }
 
@@ -541,7 +541,7 @@ app.post('/api/scan', async (c) => {
           roast,
           chaos_badges: chaosBadges,
           scan_source: 'web_vps',
-          url: `https://www.vibereport.dev/r/${reportId}`,
+          url: `https://www.vibereport.dev/report?id=${reportId}`,
         })
       }
       // VPS returned non-ok status — fall through to GitHub API
@@ -651,7 +651,7 @@ app.post('/api/scan', async (c) => {
       roast,
       chaos_badges: chaosBadges,
       scan_source: 'web_github',
-      url: `https://www.vibereport.dev/r/${reportId}`,
+      url: `https://www.vibereport.dev/report?id=${reportId}`,
     })
   } catch (err: any) {
     if (err.message?.includes('404')) {
