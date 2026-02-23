@@ -1,0 +1,81 @@
+---
+import type { LeaderboardEntry } from '../lib/api';
+import { gradeColor, gradeBg } from '../lib/api';
+
+interface Props {
+  entries: LeaderboardEntry[];
+}
+
+const { entries } = Astro.props;
+---
+
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  {entries.map((entry) => {
+    const aiPct = Math.round(entry.ai_ratio * 100);
+    const colorClass = gradeColor(entry.grade);
+    const bgClass = gradeBg(entry.grade);
+    const displayDate = entry.updated_at || entry.created_at;
+    return (
+      <a
+        href={`/report?id=${entry.id}`}
+        class="block p-4 rounded-xl bg-tokyo-surface/30 border border-tokyo-border/20 hover:border-tokyo-border/40 hover:bg-tokyo-surface/50 transition-all group"
+      >
+        <!-- Repo name + time -->
+        <div class="flex items-center justify-between gap-2 mb-3">
+          <span class="text-sm font-medium text-tokyo-text group-hover:text-tokyo-cyan transition-colors truncate">
+            {entry.repo_name}
+          </span>
+          <span class="text-xs text-tokyo-dimmed/50 shrink-0 latest-scan-time" data-date={displayDate}>
+            {displayDate}
+          </span>
+        </div>
+        <!-- Two stat rows -->
+        <div class="space-y-2">
+          <!-- AI commits row -->
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-tokyo-dimmed w-16 shrink-0">AI commits</span>
+            <div class="flex-1 h-1.5 bg-tokyo-bg rounded-full overflow-hidden">
+              <div
+                class="h-full rounded-full"
+                style={`width: ${Math.min(aiPct, 100)}%; background: linear-gradient(90deg, #f7768e, #e0af68);`}
+              />
+            </div>
+            <span class="text-xs text-tokyo-dimmed tabular-nums shrink-0 w-8 text-right">{aiPct}%</span>
+          </div>
+          <!-- Vibe Score row -->
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-tokyo-dimmed">Vibe Score</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-tokyo-dimmed tabular-nums">{entry.score} / 100</span>
+              <span class={`px-1.5 py-0.5 rounded text-xs font-bold border ${bgClass} ${colorClass}`}>
+                {entry.grade}
+              </span>
+            </div>
+          </div>
+        </div>
+      </a>
+    );
+  })}
+</div>
+
+<script>
+  function timeAgo(dateStr: string): string {
+    const now = Date.now();
+    const then = new Date(dateStr).getTime();
+    const seconds = Math.floor((now - then) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    return `${months}mo ago`;
+  }
+
+  document.querySelectorAll('.latest-scan-time').forEach((el) => {
+    const date = (el as HTMLElement).dataset.date;
+    if (date) el.textContent = timeAgo(date);
+  });
+</script>

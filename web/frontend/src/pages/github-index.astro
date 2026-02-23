@@ -1,36 +1,24 @@
 ---
 import Base from '../layouts/Base.astro';
 import TrendChart from '../components/TrendChart.astro';
-import { fetchTrends, fetchIndexTrend } from '../lib/api';
+import { fetchIndexTrend } from '../lib/api';
 
-// Fetch index trend data (primary)
+// Fetch index trend data
 let indexTrend = { snapshots: [] as Array<{ snapshot_date: string; total_repos: number; total_commits: number; total_ai_commits: number; ai_percent: number }> };
 try { indexTrend = await fetchIndexTrend(); } catch {}
 
 const latestIndex = indexTrend.snapshots.length > 0 ? indexTrend.snapshots[indexTrend.snapshots.length - 1] : null;
-
-// Fetch community trend data (secondary)
-let trends = { period: '1y', trends: [] as Array<{ month: string; avg_ai_ratio: number; total_scans: number; avg_score: number; total_commits: number; ai_commits: number }> };
-try { trends = await fetchTrends('all'); } catch {}
-
-// Map community trends to snapshot format for TrendChart
-const communitySnapshots = trends.trends.map(t => ({
-  snapshot_date: t.month,
-  total_commits: t.total_commits || 0,
-  total_ai_commits: t.ai_commits || 0,
-  ai_percent: t.avg_ai_ratio * 100,
-}));
 ---
 
-<Base title="Trends - vibereport" description="AI adoption trends across GitHub's top repos.">
+<Base title="GitHub AI Index - vibereport" description="Daily AI adoption tracking across GitHub's top repositories.">
   <section class="py-16">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center mb-10">
         <h1 class="text-3xl sm:text-4xl font-bold text-tokyo-text mb-3">
-          GitHub AI Index &mdash; Trend
+          GitHub AI Index
         </h1>
         <p class="text-sm text-tokyo-dimmed">
-          Daily AI adoption tracking across top GitHub repositories
+          Daily AI adoption tracking across 1,000 top GitHub repositories
         </p>
       </div>
 
@@ -41,7 +29,7 @@ const communitySnapshots = trends.trends.map(t => ({
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-10">
         <div class="text-center p-5 rounded-xl bg-tokyo-surface/30 border border-tokyo-border/20">
           <div class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-tokyo-cyan to-tokyo-green bg-clip-text text-transparent">
-            {latestIndex ? latestIndex.total_repos.toLocaleString() : '844'}
+            1,000
           </div>
           <p class="text-xs text-tokyo-dimmed mt-1 uppercase tracking-wider">Repos tracked</p>
         </div>
@@ -58,15 +46,6 @@ const communitySnapshots = trends.trends.map(t => ({
           <p class="text-xs text-tokyo-dimmed mt-1 uppercase tracking-wider">Days tracked</p>
         </div>
       </div>
-
-      <!-- Community section -->
-      <section class="py-12 border-t border-tokyo-border/20 mt-12">
-        <h2 class="text-xl font-bold text-tokyo-text mb-2">Community</h2>
-        <p class="text-sm text-tokyo-dimmed mb-6">
-          Stats from repos scanned by users via the CLI or web scanner.
-        </p>
-        <TrendChart snapshots={communitySnapshots} />
-      </section>
     </div>
   </section>
 </Base>

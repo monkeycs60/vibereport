@@ -736,7 +736,9 @@ app.get('/api/leaderboard', async (c) => {
 
   // Sort param
   const sort = c.req.query('sort') || 'score'
-  const orderBy = sort === 'ai' ? 'ai_ratio DESC' : 'score_points DESC'
+  const orderBy = sort === 'recent'
+    ? 'COALESCE(updated_at, created_at) DESC'
+    : sort === 'ai' ? 'ai_ratio DESC' : 'score_points DESC'
 
   // Period filter
   const period = c.req.query('period')
@@ -748,7 +750,7 @@ app.get('/api/leaderboard', async (c) => {
   }
 
   const result = await db.prepare(
-    `SELECT id, repo_name, github_username, ai_ratio, score_points, score_grade, roast, created_at
+    `SELECT id, repo_name, github_username, ai_ratio, score_points, score_grade, roast, created_at, updated_at
      FROM reports
      ${whereClause}
      ORDER BY ${orderBy}, created_at DESC

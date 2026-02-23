@@ -1,11 +1,12 @@
 ---
 import Base from '../layouts/Base.astro';
 import LeaderboardTable from '../components/LeaderboardTable.astro';
-import { fetchLeaderboard, getApiUrl } from '../lib/api';
+import TrendChart from '../components/TrendChart.astro';
+import { fetchLeaderboard, fetchTrends, getApiUrl } from '../lib/api';
 
 const page = 1;
 const VALID_PERIODS = ['week', 'month'];
-const VALID_SORTS = ['ai', 'score'];
+const VALID_SORTS = ['ai', 'score', 'recent'];
 const rawPeriod = Astro.url.searchParams.get('period');
 const period = VALID_PERIODS.includes(rawPeriod) ? rawPeriod : undefined;
 const rawSort = Astro.url.searchParams.get('sort');
@@ -17,6 +18,17 @@ try {
   leaderboard = await fetchLeaderboard(page, limit, period, sort);
 } catch {}
 
+// Fetch community trend data
+let trends = { period: '1y', trends: [] as Array<{ month: string; avg_ai_ratio: number; total_scans: number; avg_score: number; total_commits: number; ai_commits: number }> };
+try { trends = await fetchTrends('all'); } catch {}
+
+const communitySnapshots = trends.trends.map(t => ({
+  snapshot_date: t.month,
+  total_commits: t.total_commits || 0,
+  total_ai_commits: t.ai_commits || 0,
+  ai_percent: t.avg_ai_ratio * 100,
+}));
+
 const periods = [
   { value: undefined, label: 'All time' },
   { value: 'month', label: 'This month' },
@@ -27,24 +39,82 @@ const periodSuffix = period ? `&period=${period}` : '';
 const sortSuffix = sort !== 'score' ? `&sort=${sort}` : '';
 
 const sortOptions = [
-  { value: 'ai', label: 'AI %' },
   { value: 'score', label: 'Vibe Score' },
+  { value: 'ai', label: 'AI %' },
+  { value: 'recent', label: 'Recent' },
 ];
 
 const apiUrl = getApiUrl();
 const totalItems = leaderboard.total;
 ---
 
-<Base title="Leaderboard - vibereport" description="See which repos have the highest vibe scores. The global leaderboard for AI-generated code detection.">
+<Base title="Community - vibereport" description="See which repos have the highest vibe scores. The global leaderboard for AI-generated code detection.">
   <section class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
     <!-- Header -->
     <div class="mb-10">
       <h1 class="text-3xl sm:text-4xl font-bold text-tokyo-text mb-2">
-        Leaderboard
+        Community
       </h1>
       <p class="text-sm text-tokyo-dimmed">
-        The most analyzed repos, ranked by vibe score.
+        Repos scanned by users via the CLI or web scanner.
       </p>
+    </div>
+
+    <!-- Community trend chart -->
+    {communitySnapshots.length > 1 && (
+      <div class="mb-12">
+        <h2 class="text-lg font-bold text-tokyo-text mb-2">Community Trends</h2>
+        <p class="text-xs text-tokyo-dimmed mb-4">
+          Monthly AI adoption stats from community-scanned repos.
+        </p>
+        <TrendChart snapshots={communitySnapshots} />
+      </div>
+    )}
+
+    <!-- Vibe Score explainer -->
+    <div class="mb-10 p-5 rounded-xl bg-tokyo-surface/30 border border-tokyo-border/20">
+      <h3 class="text-sm font-bold text-tokyo-text mb-3">How the Vibe Score works</h3>
+      <p class="text-xs text-tokyo-dimmed mb-3">
+        The Vibe Score is a composite metric (0&ndash;100+) that measures how &ldquo;vibe-coded&rdquo; a repo is. Higher = more chaotic. Grade S+ for scores above 100.
+      </p>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+        <div class="flex items-center gap-2">
+          <span class="text-[#f7768e]">+0&ndash;60</span>
+          <span class="text-tokyo-dimmed">AI commit ratio</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[#ff9e64]">+20</span>
+          <span class="text-tokyo-dimmed">No tests</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[#f7768e]">+20/file</span>
+          <span class="text-tokyo-dimmed">.env in git</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[#ff9e64]">+10</span>
+          <span class="text-tokyo-dimmed">No linting</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[#ff9e64]">+10</span>
+          <span class="text-tokyo-dimmed">No CI/CD</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[#bb9af7]">+15</span>
+          <span class="text-tokyo-dimmed">node_modules in git</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[#bb9af7]">+10</span>
+          <span class="text-tokyo-dimmed">Boomer AI / Mega commit</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[#565f89]">+5&ndash;10</span>
+          <span class="text-tokyo-dimmed">No README, .gitignore, etc.</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[#565f89]">+0&ndash;10</span>
+          <span class="text-tokyo-dimmed">Dependency bloat</span>
+        </div>
+      </div>
     </div>
 
     <!-- Period filters + Sort toggle -->
@@ -53,8 +123,8 @@ const totalItems = leaderboard.total;
         {periods.map((p) => {
           const isActive = period === p.value;
           const href = p.value
-            ? `/leaderboard?period=${p.value}${sortSuffix}`
-            : `/leaderboard${sortSuffix ? `?${sortSuffix.slice(1)}` : ''}`;
+            ? `/community?period=${p.value}${sortSuffix}`
+            : `/community${sortSuffix ? `?${sortSuffix.slice(1)}` : ''}`;
           return (
             <a
               href={href}
@@ -75,7 +145,7 @@ const totalItems = leaderboard.total;
         <span class="text-xs text-tokyo-dimmed">Sort by:</span>
         {sortOptions.map((s) => {
           const isActive = sort === s.value;
-          const href = `/leaderboard?sort=${s.value}${periodSuffix}`;
+          const href = `/community?sort=${s.value}${periodSuffix}`;
           return (
             <a
               href={href}
@@ -156,7 +226,7 @@ const totalItems = leaderboard.total;
       tdRank.className = 'py-3 px-3 text-tokyo-dimmed font-medium';
       const rankSpan = document.createElement('span');
       rankSpan.className = rank <= 3 ? 'text-base' : 'text-sm';
-      rankSpan.textContent = rankEmoji(rank);
+      rankSpan.textContent = sort === 'recent' ? '' : rankEmoji(rank);
       tdRank.appendChild(rankSpan);
       tr.appendChild(tdRank);
 

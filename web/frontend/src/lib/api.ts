@@ -23,11 +23,13 @@ export interface StatsData {
 export interface LeaderboardEntry {
   id: string;
   repo_name: string;
+  github_username?: string;
   ai_ratio: number;
   grade: string;
   score: number;
   roast: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface LeaderboardResponse {
@@ -80,11 +82,13 @@ export async function fetchLeaderboard(
       entries: (data.reports || []).map((r: any) => ({
         id: r.id,
         repo_name: r.repo_name || r.github_username,
+        github_username: r.github_username,
         ai_ratio: r.ai_ratio,
         grade: r.score_grade,
         score: r.score_points,
         roast: r.roast,
         created_at: r.created_at,
+        updated_at: r.updated_at,
       })),
       total: data.total || 0,
       page: data.page || 1,
@@ -204,4 +208,19 @@ export function gradeBg(grade: string): string {
   if (grade.startsWith('D')) return 'bg-tokyo-red/20 border-tokyo-red/40';
   if (grade === 'F') return 'bg-red-500/20 border-red-500/40';
   return 'bg-tokyo-surface border-tokyo-border';
+}
+
+export function timeAgo(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const seconds = Math.floor((now - then) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
 }

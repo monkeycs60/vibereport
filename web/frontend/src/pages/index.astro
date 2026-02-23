@@ -1,15 +1,15 @@
 ---
 import Base from '../layouts/Base.astro';
-import LeaderboardTable from '../components/LeaderboardTable.astro';
+import LatestScans from '../components/LatestScans.astro';
 import TrendChart from '../components/TrendChart.astro';
 import BattleChart from '../components/BattleChart.astro';
 import { fetchLeaderboard, fetchIndexLatest, fetchIndexTrend } from '../lib/api';
 
-let leaderboard = { entries: [], total: 0, page: 1, limit: 5 };
+let latestScans = { entries: [], total: 0, page: 1, limit: 10 };
 let indexLatest = { snapshot_date: null as string | null, quarter: '', total_repos: 0, total_commits: 0, total_ai_commits: 0, ai_percent: 0 };
 let indexTrend = { snapshots: [] as Array<{ snapshot_date: string; total_repos: number; total_commits: number; total_ai_commits: number; ai_percent: number }> };
 
-try { leaderboard = await fetchLeaderboard(1, 5); } catch {}
+try { latestScans = await fetchLeaderboard(1, 10, undefined, 'recent'); } catch {}
 try { indexLatest = await fetchIndexLatest(); } catch {}
 try { indexTrend = await fetchIndexTrend(); } catch {}
 
@@ -25,18 +25,18 @@ const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
     <div class="absolute top-0 left-1/4 w-96 h-96 bg-tokyo-cyan/5 rounded-full blur-3xl"></div>
     <div class="absolute top-20 right-1/4 w-96 h-96 bg-tokyo-green/5 rounded-full blur-3xl"></div>
 
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-12 relative z-10">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-12 relative z-10">
       <div class="text-center max-w-3xl mx-auto animate-fade-in-up">
         <h1 class="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight mb-6">
           <span class="bg-gradient-to-r from-tokyo-cyan via-tokyo-green to-tokyo-yellow bg-clip-text text-transparent">
-            VIBE REPORT
+            How much code is AI&#8209;generated?
           </span>
         </h1>
         <p class="text-lg sm:text-xl text-tokyo-dimmed mb-2">
-          The Spotify Wrapped for your code
+          We track 1,000 top GitHub repos daily. Scan yours to find out.
         </p>
         <p class="text-sm text-tokyo-dimmed/70 mb-10">
-          Analyze any git repo. Discover how much was AI-generated. Get roasted.
+          We only analyze commit messages &mdash; your code stays private.
         </p>
 
         <!-- Scan input -->
@@ -81,66 +81,60 @@ const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
     </div>
   </section>
 
-  <!-- Battle Chart -->
+  <!-- The Big Picture — GitHub AI Index -->
   <section class="py-16">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <h2 class="text-2xl font-bold text-center text-tokyo-text mb-8">
-        AI vs Humans
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <h2 class="text-2xl font-bold text-center text-tokyo-text mb-2">
+        The Big Picture
       </h2>
-      <BattleChart
-        aiCommits={indexAiCommits}
-        humanCommits={indexHumanCommits}
-        totalRepos={indexLatest.total_repos}
-        snapshotDate={indexLatest.snapshot_date}
-      />
-    </div>
-  </section>
-
-  <!-- Trend -->
-  <section class="py-16">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <h2 class="text-2xl font-bold text-center text-tokyo-text mb-8">
-        The rise of vibe coding
-      </h2>
-      <TrendChart snapshots={indexTrend.snapshots} />
-      <div class="text-center mt-4">
-        <a href="/trends" class="text-sm text-tokyo-cyan hover:text-tokyo-cyan/80 transition-colors">
-          View full trends &rarr;
+      <p class="text-sm text-tokyo-dimmed text-center mb-8">
+        Tracking AI adoption across 1,000 top GitHub repos
+      </p>
+      <div class="space-y-10">
+        <BattleChart
+          aiCommits={indexAiCommits}
+          humanCommits={indexHumanCommits}
+          totalRepos={indexLatest.total_repos}
+          snapshotDate={indexLatest.snapshot_date}
+        />
+        <TrendChart snapshots={indexTrend.snapshots} />
+      </div>
+      <div class="text-center mt-6">
+        <a href="/github-index" class="text-sm text-tokyo-cyan hover:text-tokyo-cyan/80 transition-colors">
+          View detailed index &rarr;
         </a>
       </div>
     </div>
   </section>
 
-  <!-- Top 5 leaderboard -->
+  <!-- Latest Vibes — Community -->
   <section class="py-16 border-t border-tokyo-border/20">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between mb-8">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between mb-2">
         <h2 class="text-2xl font-bold text-tokyo-text">
-          Top vibers
+          Fresh from the community
         </h2>
         <a
-          href="/leaderboard"
+          href="/community"
           class="text-sm text-tokyo-cyan hover:text-tokyo-cyan/80 transition-colors"
         >
-          View all &rarr;
+          View community &rarr;
         </a>
       </div>
-      <div class="rounded-xl border border-tokyo-border/30 bg-tokyo-surface/30 backdrop-blur-sm overflow-hidden">
-        <LeaderboardTable entries={leaderboard.entries} compact={true} />
-      </div>
+      <p class="text-sm text-tokyo-dimmed mb-8">
+        Latest repos scanned by users. AI commits % shows how much was AI-generated. Vibe Score (0&ndash;100+) measures overall chaos &mdash; higher is worse.
+      </p>
+      <LatestScans entries={latestScans.entries} />
     </div>
   </section>
 
   <!-- CTA -->
   <section class="py-16">
-    <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
       <div class="p-8 rounded-2xl bg-gradient-to-br from-tokyo-surface/80 to-tokyo-surface/40 border border-tokyo-border/30 backdrop-blur-sm glow">
         <h2 class="text-xl sm:text-2xl font-bold text-tokyo-text mb-3">
-          Ready to check your AI footprint?
+          Check your repo's AI footprint
         </h2>
-        <p class="text-sm text-tokyo-dimmed mb-2">
-          Install the CLI to generate your vibe report and share it with the world.
-        </p>
         <p class="text-xs text-tokyo-dimmed/50 mb-6">
           We only analyze commit messages &mdash; your code stays private.
         </p>
@@ -149,10 +143,10 @@ const indexHumanCommits = (indexLatest.total_commits || 0) - indexAiCommits;
             href="/scan"
             class="px-6 py-2.5 bg-gradient-to-r from-tokyo-cyan to-tokyo-green text-tokyo-bg font-semibold rounded-lg text-sm hover:opacity-90 transition-all"
           >
-            Scan a repo online
+            Scan online
           </a>
           <span class="text-tokyo-dimmed text-sm">or</span>
-          <code class="px-4 py-2.5 bg-tokyo-bg rounded-lg text-xs sm:text-sm text-tokyo-green border border-tokyo-border/30 break-all">
+          <code class="px-4 py-2.5 bg-tokyo-bg rounded-lg text-xs sm:text-sm text-tokyo-green border border-tokyo-border/30">
             curl -fsSL vibereport.dev/install.sh | sh
           </code>
         </div>

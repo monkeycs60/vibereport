@@ -62,64 +62,6 @@ const apiUrl = getApiUrl();
           <p id="scan-error-msg" class="text-xs text-tokyo-dimmed"></p>
         </div>
       </div>
-
-      <!-- Result state -->
-      <div id="scan-result" class="hidden">
-        <div class="p-6 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 backdrop-blur-sm">
-          <!-- Header: AI% as hero metric -->
-          <div class="text-center mb-5">
-            <h3 id="result-repo" class="text-xl font-bold text-tokyo-text mb-3"></h3>
-            <div class="text-5xl font-bold text-[#f7768e] mb-1" id="result-ai-pct-hero"></div>
-            <p class="text-sm text-tokyo-dimmed">AI-generated commits</p>
-            <p class="text-xs text-tokyo-dimmed mt-1">
-              <span id="result-commits"></span> commits analyzed
-            </p>
-          </div>
-
-          <!-- AI vs Human bar -->
-          <div class="mb-5">
-            <div class="flex items-center justify-between text-xs mb-1.5">
-              <span class="text-[#f7768e]">AI <span id="result-ai-count"></span> (<span id="result-ai-pct"></span>%)</span>
-              <span class="text-[#7aa2f7]">(<span id="result-human-pct"></span>%) <span id="result-human-count"></span> Human</span>
-            </div>
-            <div class="h-4 bg-[#7aa2f7]/30 rounded-full overflow-hidden relative">
-              <div id="result-ai-bar" class="h-full rounded-full transition-all duration-1000 ease-out" style="width: 0%; background: linear-gradient(90deg, #f7768e, #ff9e64);"></div>
-            </div>
-          </div>
-
-          <!-- Vibe Score + Grade (secondary) -->
-          <div class="flex items-center justify-center gap-6 mb-5 p-4 rounded-xl bg-tokyo-bg/40 border border-tokyo-border/20">
-            <div class="text-center">
-              <p class="text-xs text-tokyo-dimmed mb-1">Vibe Score</p>
-              <span id="result-score" class="text-2xl font-bold"></span>
-            </div>
-            <div class="h-10 w-px bg-tokyo-border/30"></div>
-            <div class="text-center">
-              <p class="text-xs text-tokyo-dimmed mb-1">Grade</p>
-              <div id="result-grade" class="w-14 h-14 flex items-center justify-center rounded-xl text-2xl font-bold border-2"></div>
-            </div>
-          </div>
-
-          <!-- Roast -->
-          <p id="result-roast" class="text-sm text-tokyo-yellow italic mb-4"></p>
-
-          <!-- Chaos Badges (colored pills) -->
-          <div id="result-badges" class="flex flex-wrap gap-1.5 mb-4"></div>
-
-          <!-- Languages -->
-          <div id="result-langs" class="flex flex-wrap gap-1.5 mb-6"></div>
-
-          <!-- Actions -->
-          <div class="flex items-center gap-3">
-            <a id="result-link" href="#" class="px-4 py-2 bg-tokyo-cyan/20 text-tokyo-cyan text-xs rounded-lg border border-tokyo-cyan/30 hover:bg-tokyo-cyan/30 transition-all">
-              View full report &rarr;
-            </a>
-            <button id="result-share-twitter" class="px-4 py-2 bg-tokyo-surface text-tokyo-dimmed text-xs rounded-lg border border-tokyo-border/30 hover:text-tokyo-text transition-all">
-              Share on Twitter
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Examples -->
@@ -147,7 +89,6 @@ const apiUrl = getApiUrl();
   const loadingEl = document.getElementById('scan-loading');
   const errorEl = document.getElementById('scan-error');
   const errorMsg = document.getElementById('scan-error-msg');
-  const resultEl = document.getElementById('scan-result');
 
   // Prefill from URL param
   const params = new URLSearchParams(window.location.search);
@@ -170,63 +111,9 @@ const apiUrl = getApiUrl();
     statusArea?.classList.remove('hidden');
     loadingEl?.classList.add('hidden');
     errorEl?.classList.add('hidden');
-    resultEl?.classList.add('hidden');
 
     if (state === 'loading') loadingEl?.classList.remove('hidden');
     if (state === 'error') errorEl?.classList.remove('hidden');
-    if (state === 'result') resultEl?.classList.remove('hidden');
-  }
-
-  function getGradeClasses(grade) {
-    if (!grade) return ['text-[#565f89]', 'bg-[#565f89]/20', 'border-[#565f89]/40'];
-    const g = grade.charAt(0);
-    switch (g) {
-      case 'S': return ['text-[#9ece6a]', 'bg-[#9ece6a]/20', 'border-[#9ece6a]/40'];
-      case 'A': return ['text-[#9ece6a]', 'bg-[#9ece6a]/20', 'border-[#9ece6a]/40'];
-      case 'B': return ['text-[#7aa2f7]', 'bg-[#7aa2f7]/20', 'border-[#7aa2f7]/40'];
-      case 'C': return ['text-[#e0af68]', 'bg-[#e0af68]/20', 'border-[#e0af68]/40'];
-      case 'D': return ['text-[#f7768e]', 'bg-[#f7768e]/20', 'border-[#f7768e]/40'];
-      default: return ['text-[#f7768e]', 'bg-red-500/20', 'border-red-500/40'];
-    }
-  }
-
-  const langColors = {
-    Rust: '#f7768e', TypeScript: '#7aa2f7', JavaScript: '#e0af68',
-    Python: '#9ece6a', Go: '#7dcfff', Java: '#ff9e64',
-    'C++': '#bb9af7', C: '#565f89', Ruby: '#f7768e', Swift: '#ff9e64',
-  };
-
-  // Badge color map: category -> [bg, text, border]
-  const badgeStyles = {
-    // Red: security issues
-    'env-in-git':          { bg: 'rgba(247,118,142,0.15)', text: '#f7768e', border: 'rgba(247,118,142,0.3)', label: 'env in git' },
-    'hardcoded-secrets':   { bg: 'rgba(247,118,142,0.15)', text: '#f7768e', border: 'rgba(247,118,142,0.3)', label: 'hardcoded secrets' },
-    // Orange: bad practices
-    'no-tests':            { bg: 'rgba(255,158,100,0.15)', text: '#ff9e64', border: 'rgba(255,158,100,0.3)', label: 'no tests' },
-    'no-linting':          { bg: 'rgba(255,158,100,0.15)', text: '#ff9e64', border: 'rgba(255,158,100,0.3)', label: 'no linting' },
-    'no-ci-cd':            { bg: 'rgba(255,158,100,0.15)', text: '#ff9e64', border: 'rgba(255,158,100,0.3)', label: 'no CI/CD' },
-    // Purple: vibe patterns
-    'boomer-ai':           { bg: 'rgba(187,154,247,0.15)', text: '#bb9af7', border: 'rgba(187,154,247,0.3)', label: 'boomer AI' },
-    'node-modules':        { bg: 'rgba(187,154,247,0.15)', text: '#bb9af7', border: 'rgba(187,154,247,0.3)', label: 'node_modules' },
-    'mega-commit':         { bg: 'rgba(187,154,247,0.15)', text: '#bb9af7', border: 'rgba(187,154,247,0.3)', label: 'mega commit' },
-    // Gray: minor
-    'todo-flood':          { bg: 'rgba(86,95,137,0.15)', text: '#565f89', border: 'rgba(86,95,137,0.3)', label: 'TODO flood' },
-    'single-branch':       { bg: 'rgba(86,95,137,0.15)', text: '#565f89', border: 'rgba(86,95,137,0.3)', label: 'single branch' },
-    'no-gitignore':        { bg: 'rgba(86,95,137,0.15)', text: '#565f89', border: 'rgba(86,95,137,0.3)', label: 'no .gitignore' },
-    'no-readme':           { bg: 'rgba(86,95,137,0.15)', text: '#565f89', border: 'rgba(86,95,137,0.3)', label: 'no README' },
-  };
-
-  function renderBadges(container, badges) {
-    container.innerHTML = '';
-    if (!badges || badges.length === 0) return;
-    for (const badge of badges) {
-      const style = badgeStyles[badge] || { bg: 'rgba(86,95,137,0.15)', text: '#565f89', border: 'rgba(86,95,137,0.3)', label: badge.replace(/-/g, ' ') };
-      const pill = document.createElement('span');
-      pill.className = 'inline-block px-2.5 py-1 rounded-full text-xs font-medium';
-      pill.style.cssText = `background:${style.bg}; color:${style.text}; border:1px solid ${style.border};`;
-      pill.textContent = style.label;
-      container.appendChild(pill);
-    }
   }
 
   form?.addEventListener('submit', async (e) => {
@@ -250,78 +137,14 @@ const apiUrl = getApiUrl();
       }
 
       const data = await res.json();
-      const aiPct = Math.round((data.ai_ratio || 0) * 100);
-      const humanPct = 100 - aiPct;
-
-      // Populate result
-      document.getElementById('result-repo').textContent = data.repo_name || repo;
-      document.getElementById('result-commits').textContent = (data.total_commits || 0).toLocaleString();
-      document.getElementById('result-ai-pct-hero').textContent = aiPct + '%';
-      document.getElementById('result-ai-pct').textContent = String(aiPct);
-      document.getElementById('result-human-pct').textContent = String(humanPct);
-      document.getElementById('result-ai-count').textContent = (data.ai_commits || 0).toLocaleString();
-      document.getElementById('result-human-count').textContent = (data.human_commits || 0).toLocaleString();
-      document.getElementById('result-score').textContent = data.score || '0';
-      document.getElementById('result-roast').textContent = `"${data.roast || 'No roast available.'}"`;
-
-      // Grade badge (secondary)
-      const gradeEl = document.getElementById('result-grade');
-      const [textCls, bgCls, borderCls] = getGradeClasses(data.grade);
-      gradeEl.className = `w-14 h-14 flex items-center justify-center rounded-xl text-2xl font-bold border-2 ${textCls} ${bgCls} ${borderCls}`;
-      gradeEl.textContent = data.grade || '?';
-
-      // Score color
-      const scoreEl = document.getElementById('result-score');
-      scoreEl.className = `text-2xl font-bold ${textCls}`;
-
-      // AI bar animation (red=AI, blue background=Human)
-      setTimeout(() => {
-        document.getElementById('result-ai-bar').style.width = `${aiPct}%`;
-      }, 100);
-
-      // Chaos badges
-      const badgesEl = document.getElementById('result-badges');
-      renderBadges(badgesEl, data.chaos_badges || []);
-
-      // Languages (values are raw line counts, not percentages)
-      const langsEl = document.getElementById('result-langs');
-      langsEl.innerHTML = '';
-      const hexColorRe = /^#[0-9a-fA-F]{6}$/;
-      if (data.languages) {
-        const langEntries = Object.entries(data.languages)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 5);
-        const totalLines = data.total_lines || langEntries.reduce((s, [, v]) => s + Number(v), 0) || 1;
-        langEntries.forEach(([lang, lineCount]) => {
-            const chip = document.createElement('span');
-            chip.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs bg-[#1a1b26]/80 text-[#565f89] border border-[#3b4261]/30';
-            const rawColor = langColors[lang] || '#565f89';
-            const color = hexColorRe.test(rawColor) ? rawColor : '#565f89';
-            const dot = document.createElement('span');
-            dot.className = 'w-2 h-2 rounded-full flex-shrink-0';
-            dot.style.background = color;
-            chip.appendChild(dot);
-            const pct = Math.round((Number(lineCount) / totalLines) * 100);
-            const label = document.createTextNode(lang + ' ' + pct + '%');
-            chip.appendChild(label);
-            langsEl.appendChild(chip);
-          });
-      }
-
-      // Links
       if (data.id) {
-        document.getElementById('result-link').href = `/report?id=${data.id}`;
-        document.getElementById('result-share-twitter').onclick = () => {
-          const text = `My repo ${data.repo_name} scored ${data.grade} on vibereport! ${data.roast}`;
-          window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.origin + '/report?id=' + data.id)}`, '_blank');
-        };
+        window.location.href = '/report?id=' + data.id;
+      } else {
+        throw new Error('No report ID returned');
       }
-
-      showState('result');
     } catch (err) {
       errorMsg.textContent = err.message || 'An unexpected error occurred.';
       showState('error');
-    } finally {
       btn.disabled = false;
     }
   });
