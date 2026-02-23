@@ -114,7 +114,15 @@ Show all options:
 vibereport --help
 ```
 
-## What it detects
+## How detection works
+
+vibereport reads **only commit messages** — no source code, no diffs, no file contents. It looks for three types of signatures that AI coding tools leave in git history:
+
+1. **Co-Authored-By trailers** — Most AI tools append a `Co-authored-by:` line at the end of commit messages (e.g. `Co-authored-by: Claude <noreply@anthropic.com>`). This is the primary detection method.
+2. **Email patterns** — Some tools use identifiable email addresses in the commit author or trailer (e.g. `noreply@anthropic.com`, `noreply@aider.chat`).
+3. **Message prefixes** — A few tools prepend a tag to the commit message itself (e.g. `aider:` prefix, `Generated with Claude Code`).
+
+If none of these patterns match, the commit is counted as human-authored.
 
 | Tool | Detection patterns |
 |------|-------------------|
@@ -126,7 +134,9 @@ vibereport --help
 | **Gemini CLI** | `Co-authored-by: Gemini`, `noreply@google.com` + gemini |
 | **Human** | Everything else |
 
-> **Note:** Detection relies on commit message signatures. Tools like Cursor and Aider sign commits by default. GitHub Copilot (inline autocomplete) does NOT sign commits — only Copilot Chat in agent mode does. Windsurf/Codeium does not sign commits either.
+> **Note:** Tools that don't sign commits are not detectable — this includes Windsurf/Codeium, Copilot inline autocomplete (only Copilot Chat in agent mode signs), and Kilo Code.
+
+**Know a tool we're missing, or spotted a detection pattern we should add?** [Open an issue](https://github.com/monkeycs60/vibereport/issues) — we're always looking to improve coverage.
 
 ## The Vibe Score
 
