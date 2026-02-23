@@ -1,0 +1,5 @@
+---
+// Redirect /r/:id → /report?id=:id
+const { id } = Astro.params;
+return Astro.redirect(`/report?id=${id}`, 301);
+---

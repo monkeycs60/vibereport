@@ -94,39 +94,18 @@ pub fn render_with_name(
         render_timeline_chart(&timeline);
     }
 
-    // ── Security ──
-    if project.security.env_in_git || project.security.hardcoded_secrets_hints > 0 {
-        blank();
-        section("SECURITY");
-        if project.security.env_files_count > 0 {
-            let env_msg = if project.security.env_files_count == 1 {
-                ".env committed to git!".to_string()
-            } else {
-                format!(
-                    "{} .env files committed to git!",
-                    project.security.env_files_count
-                )
-            };
-            warning_line(&env_msg);
-        }
-        if project.security.hardcoded_secrets_hints > 0 {
-            warning_line(&format!(
-                "{} hardcoded secret(s) detected",
-                project.security.hardcoded_secrets_hints
-            ));
-        }
-    }
-
     blank();
     separator();
     blank();
 
-    // ── Score Breakdown ──
+    // ── Score Breakdown (pills + vibe checks) ──
+    section("SCORE BREAKDOWN");
     if !score.breakdown.is_empty() {
-        section("SCORE BREAKDOWN");
         render_breakdown_pills(&score.breakdown);
-        blank();
     }
+    blank();
+    render_vibe_checks(project, git);
+    blank();
 
     // ── Score ──
     score_line(&score.grade, score.points);
@@ -230,6 +209,10 @@ fn display_width(s: &str) -> usize {
         match ch {
             // Variation selectors / zero-width joiners / combining marks
             '\u{FE00}'..='\u{FE0F}' | '\u{200D}' | '\u{20E3}' => {}
+            // Dingbats that render narrow in terminals (✔ check, ✘ cross)
+            '\u{2714}' | '\u{2718}' => {
+                w += 1;
+            }
             // Common emoji ranges (simplified — covers most we use)
             '\u{1F300}'..='\u{1F9FF}' | '\u{2600}'..='\u{27BF}' | '\u{2B50}'..='\u{2B55}' => {
                 w += 2;
@@ -424,20 +407,6 @@ fn lang_row(lang: &str, pct: f64) {
     );
 }
 
-fn warning_line(msg: &str) {
-    let prefix_dw = 3 + 3; // "   " + "!! "
-    let msg_dw = display_width(msg);
-    let rp = W.saturating_sub(prefix_dw + msg_dw);
-    println!(
-        "  {}   {}{}{}{}",
-        "\u{2502}".cyan(),
-        "!! ".bright_red().bold(),
-        msg.bright_red(),
-        " ".repeat(rp),
-        "\u{2502}".cyan(),
-    );
-}
-
 fn score_line(grade: &str, points: u32) {
     let text = format!("VIBE SCORE: {} ({}pts)", grade, points);
     let dw = display_width(&text);
@@ -466,6 +435,77 @@ fn roast_line(roast: &str) {
         " ".repeat(rp),
         "\u{2502}".cyan(),
     );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  Vibe Check (chaos badges)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+fn render_vibe_checks(project: &ProjectStats, git: &GitStats) {
+    let checks: Vec<(bool, &str)> = vec![
+        (project.tests.has_tests, "Tests"),
+        (!project.vibe.no_linting, "Linting"),
+        (!project.vibe.no_ci_cd, "CI/CD"),
+        (!project.vibe.no_gitignore, ".gitignore"),
+        (!project.vibe.no_readme, "README"),
+        (!project.security.env_in_git, "No .env leaked"),
+        (project.security.hardcoded_secrets_hints == 0, "No secrets"),
+        (!project.vibe.node_modules_in_git, "Clean vendor"),
+        (!project.vibe.mega_commit, "No mega commit"),
+        (!project.vibe.single_branch, "Multiple branches"),
+        (!(git.ai_ratio > 0.0 && project.vibe.boomer_ai), "AI config"),
+    ];
+
+    // Render as two columns
+    let ml = 3_usize;
+    let col_w = 24_usize;
+
+    let mut i = 0;
+    while i < checks.len() {
+        let (ok1, label1) = checks[i];
+        let col1_plain = format!("\u{2714} {}", label1);
+        let col1_dw = display_width(&col1_plain);
+        let col1_pad = col_w.saturating_sub(col1_dw);
+
+        let col2_info = if i + 1 < checks.len() {
+            let (ok2, label2) = checks[i + 1];
+            Some((ok2, label2))
+        } else {
+            None
+        };
+        let col2_dw = col2_info
+            .map(|(_, l)| display_width(&format!("\u{2714} {}", l)))
+            .unwrap_or(0);
+
+        let total = ml + col1_dw + col1_pad + col2_dw;
+        let rp = W.saturating_sub(total);
+
+        let col1_colored = check_item(ok1, label1);
+        let col2_colored = col2_info
+            .map(|(ok, label)| check_item(ok, label))
+            .unwrap_or_default();
+
+        println!(
+            "  {}{}{}{}{}{}{}",
+            "\u{2502}".cyan(),
+            " ".repeat(ml),
+            col1_colored,
+            " ".repeat(col1_pad),
+            col2_colored,
+            " ".repeat(rp),
+            "\u{2502}".cyan(),
+        );
+
+        i += 2;
+    }
+}
+
+fn check_item(ok: bool, label: &str) -> String {
+    if ok {
+        format!("{} {}", "\u{2714}".green(), label.dimmed())
+    } else {
+        format!("{} {}", "\u{2718}".red(), label.yellow())
+    }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -510,7 +550,7 @@ fn render_timeline_chart(timeline: &[MonthlyStats]) {
     let total_content = prefix_w + bars_w;
     let right_pad = W.saturating_sub(total_content);
 
-    section("TIMELINE");
+    section("TIMELINE (AI% per month)");
 
     // Y-axis thresholds: 100, 80, 60, 40, 20, 0
     for row in 0..CHART_ROWS {
