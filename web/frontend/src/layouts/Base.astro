@@ -5,11 +5,16 @@ interface Props {
   ogImage?: string;
 }
 
+const SITE_URL = 'https://www.vibereport.dev';
+
 const {
   title = 'vibereport - The Spotify Wrapped for your code',
   description = 'Analyze any git repo and discover how much was AI-generated. Get your vibe score, grade, and a brutally honest roast.',
-  ogImage = '/og-default.png',
+  ogImage = '/api/og',
 } = Astro.props;
+
+// Ensure og:image is always an absolute URL
+const absoluteOgImage = ogImage.startsWith('http') ? ogImage : `${SITE_URL}${ogImage}`;
 import Analytics from '@vercel/analytics/astro';
 ---
 
@@ -22,12 +27,12 @@ import Analytics from '@vercel/analytics/astro';
     <meta name="description" content={description} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={ogImage} />
+    <meta property="og:image" content={absoluteOgImage} />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image" content={absoluteOgImage} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
