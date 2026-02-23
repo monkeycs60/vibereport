@@ -80,7 +80,7 @@ pub fn calculate(git: &GitStats, project: &ProjectStats) -> VibeScore {
     points += deps_pts;
     if deps_pts > 0 {
         breakdown.push(ScoreFactor {
-            label: "Deps Bloat".into(),
+            label: format!("{} Deps", project.deps.total),
             points: deps_pts,
         });
     }

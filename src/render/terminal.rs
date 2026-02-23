@@ -463,8 +463,7 @@ fn render_vibe_checks(project: &ProjectStats, git: &GitStats) {
     let mut i = 0;
     while i < checks.len() {
         let (ok1, label1) = checks[i];
-        let col1_plain = format!("\u{2714} {}", label1);
-        let col1_dw = display_width(&col1_plain);
+        let col1_dw = 1 + 1 + display_width(label1); // "+" + " " + label
         let col1_pad = col_w.saturating_sub(col1_dw);
 
         let col2_info = if i + 1 < checks.len() {
@@ -474,7 +473,7 @@ fn render_vibe_checks(project: &ProjectStats, git: &GitStats) {
             None
         };
         let col2_dw = col2_info
-            .map(|(_, l)| display_width(&format!("\u{2714} {}", l)))
+            .map(|(_, l)| 1 + 1 + display_width(l))
             .unwrap_or(0);
 
         let total = ml + col1_dw + col1_pad + col2_dw;
@@ -502,9 +501,9 @@ fn render_vibe_checks(project: &ProjectStats, git: &GitStats) {
 
 fn check_item(ok: bool, label: &str) -> String {
     if ok {
-        format!("{} {}", "\u{2714}".green(), label.dimmed())
+        format!("{} {}", "+".green().bold(), label.dimmed())
     } else {
-        format!("{} {}", "\u{2718}".red(), label.yellow())
+        format!("{} {}", "x".red().bold(), label.yellow())
     }
 }
 
@@ -550,7 +549,20 @@ fn render_timeline_chart(timeline: &[MonthlyStats]) {
     let total_content = prefix_w + bars_w;
     let right_pad = W.saturating_sub(total_content);
 
-    section("TIMELINE (AI% per month)");
+    section("TIMELINE");
+    // Subtitle explaining what the chart shows
+    let subtitle = "AI-authored commits % per month";
+    let sub_ml = 5_usize;
+    let sub_dw = sub_ml + display_width(subtitle);
+    let sub_rp = W.saturating_sub(sub_dw);
+    println!(
+        "  {}{}{}{}{}",
+        "\u{2502}".cyan(),
+        " ".repeat(sub_ml),
+        subtitle.dimmed(),
+        " ".repeat(sub_rp),
+        "\u{2502}".cyan(),
+    );
 
     // Y-axis thresholds: 100, 80, 60, 40, 20, 0
     for row in 0..CHART_ROWS {
