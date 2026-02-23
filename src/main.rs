@@ -59,6 +59,27 @@ fn main() {
     run_single(&cli, path);
 }
 
+/// Extract "user/repo" from a GitHub remote URL.
+/// Handles HTTPS (`https://github.com/user/repo.git`) and SSH (`git@github.com:user/repo.git`).
+fn extract_github_slug(remote_url: Option<&str>) -> Option<String> {
+    let url = remote_url?;
+    // SSH: git@github.com:user/repo.git
+    if let Some(rest) = url.strip_prefix("git@github.com:") {
+        let slug = rest.trim_end_matches(".git");
+        if slug.contains('/') {
+            return Some(slug.to_string());
+        }
+    }
+    // HTTPS: https://github.com/user/repo.git
+    if let Some(pos) = url.find("github.com/") {
+        let slug = url[pos + "github.com/".len()..].trim_end_matches(".git");
+        if slug.contains('/') {
+            return Some(slug.to_string());
+        }
+    }
+    None
+}
+
 /// Analyze a single local repo.
 fn run_single(cli: &Cli, path: &Path) {
     eprintln!("Scanning {}...", path.display());
@@ -86,11 +107,13 @@ fn run_single(cli: &Cli, path: &Path) {
     let vibe_score = score::calculator::calculate(&git_stats, &project_stats);
 
     // ── Repo name ──
-    let repo_name = path
-        .canonicalize()
-        .ok()
-        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
-        .unwrap_or_else(|| cli.path.clone());
+    // Try to extract "user/repo" from git remote URL; fall back to directory name
+    let repo_name = extract_github_slug(git_stats.remote_url.as_deref()).unwrap_or_else(|| {
+        path.canonicalize()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+            .unwrap_or_else(|| cli.path.clone())
+    });
 
     // ── Output + export ──
     output_report(cli, &git_stats, &project_stats, &vibe_score, &repo_name);

@@ -212,6 +212,7 @@ mod tests {
             first_commit_date: None,
             last_commit_date: None,
             repo_fingerprint: None,
+            remote_url: None,
         }
     }
 

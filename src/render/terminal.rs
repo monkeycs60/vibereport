@@ -543,8 +543,8 @@ fn render_timeline_chart(timeline: &[MonthlyStats]) {
     };
 
     let n = months.len();
-    // prefix = "  100% │ " = 9 display columns
-    let prefix_w: usize = 9;
+    // prefix = "  100% │ " = 10 display columns (7 label + 1 space + 1 axis + 1 space)
+    let prefix_w: usize = 10;
     let bars_w: usize = n * 3; // each bar = "██ " (3 cols), last one has trailing space too
     let total_content = prefix_w + bars_w;
     let right_pad = W.saturating_sub(total_content);
@@ -641,7 +641,6 @@ fn render_timeline_chart(timeline: &[MonthlyStats]) {
 
 fn render_breakdown_pills(factors: &[crate::score::calculator::ScoreFactor]) {
     let ml = 3_usize; // left margin
-    let mr = 2_usize; // right margin
     let gap = 2_usize; // gap between pills
 
     let mut line_pills: Vec<String> = Vec::new();
@@ -658,10 +657,10 @@ fn render_breakdown_pills(factors: &[crate::score::calculator::ScoreFactor]) {
             gap + pill_dw
         };
 
-        if line_width + needed + mr > W && !line_pills.is_empty() {
+        if line_width + needed > W && !line_pills.is_empty() {
             // Flush current line
             let content: String = line_pills.join("  ");
-            let content_dw = ml + display_width(&content) + mr;
+            let content_dw = ml + display_width(&content);
             let rp = W.saturating_sub(content_dw);
             println!(
                 "  {}{}{}{}{}",
@@ -685,7 +684,7 @@ fn render_breakdown_pills(factors: &[crate::score::calculator::ScoreFactor]) {
     // Flush remaining pills
     if !line_pills.is_empty() {
         let content: String = line_pills.join("  ");
-        let content_dw = ml + display_width(&content) + mr;
+        let content_dw = ml + display_width(&content);
         let rp = W.saturating_sub(content_dw);
         println!(
             "  {}{}{}{}{}",

@@ -30,6 +30,8 @@ pub struct GitStats {
     #[allow(dead_code)]
     pub last_commit_date: Option<DateTime<Utc>>,
     pub repo_fingerprint: Option<String>,
+    /// Sanitized remote origin URL (credentials stripped).
+    pub remote_url: Option<String>,
 }
 
 /// Parse a --since value into an optional cutoff DateTime.
@@ -146,11 +148,12 @@ pub fn analyze_repo(
         r.url(gix::remote::Direction::Fetch)
             .map(|u| u.to_bstring().to_string())
     });
+    let sanitized_remote_url = remote_url.map(|u| strip_url_credentials(&u));
     let repo_fingerprint = if root_commit_full_hash.is_empty() {
         None
     } else {
-        let sanitized_url = strip_url_credentials(&remote_url.unwrap_or_default());
-        Some(format!("{}:{}", root_commit_full_hash, sanitized_url))
+        let url_part = sanitized_remote_url.as_deref().unwrap_or_default();
+        Some(format!("{}:{}", root_commit_full_hash, url_part))
     };
 
     Ok(GitStats {
@@ -163,6 +166,7 @@ pub fn analyze_repo(
         first_commit_date,
         last_commit_date,
         repo_fingerprint,
+        remote_url: sanitized_remote_url,
     })
 }
 

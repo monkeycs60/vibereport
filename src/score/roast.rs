@@ -29,7 +29,8 @@ pub fn pick_roast(points: u32, ai_ratio: f64, project: &ProjectStats) -> String 
         return "node_modules is the real project.".to_string();
     }
     if !project.tests.has_tests && project.languages.total_lines > 10000 {
-        return "10K lines of YOLO.".to_string();
+        let loc = fmt_loc(project.languages.total_lines);
+        return format!("{} lines of YOLO.", loc);
     }
     if project.vibe.no_gitignore && project.vibe.no_readme {
         return "No .gitignore, no README, no mercy.".to_string();
@@ -58,6 +59,16 @@ pub fn pick_roast(points: u32, ai_ratio: f64, project: &ProjectStats) -> String 
         _ => "Handcrafted with mass-produced tears.",
     }
     .to_string()
+}
+
+fn fmt_loc(n: usize) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.0}K", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
+    }
 }
 
 #[cfg(test)]
@@ -162,7 +173,7 @@ mod tests {
         p.tests.test_files_count = 0;
         p.languages.total_lines = 15000;
         let roast = pick_roast(50, 0.5, &p);
-        assert_eq!(roast, "10K lines of YOLO.");
+        assert_eq!(roast, "15K lines of YOLO.");
     }
 
     #[test]
