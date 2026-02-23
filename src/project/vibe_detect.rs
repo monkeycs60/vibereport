@@ -127,7 +127,7 @@ pub fn detect_vibe(path: &Path, ai_ratio: f64) -> VibeInfo {
     }
 }
 
-/// Check if .gitignore is missing or too small (< 3 non-empty, non-comment lines).
+/// Check if .gitignore is missing or empty (no non-empty, non-comment lines).
 fn check_gitignore(path: &Path) -> bool {
     let gitignore_path = path.join(".gitignore");
     if !gitignore_path.exists() {
@@ -139,7 +139,7 @@ fn check_gitignore(path: &Path) -> bool {
                 .lines()
                 .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
                 .count();
-            non_empty_lines < 3
+            non_empty_lines == 0
         }
         Err(_) => true,
     }
@@ -380,11 +380,11 @@ mod tests {
     }
 
     #[test]
-    fn detects_tiny_gitignore() {
+    fn single_line_gitignore_passes() {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join(".gitignore"), "node_modules\n").unwrap();
         let info = detect_vibe(dir.path(), 0.0);
-        assert!(info.no_gitignore); // only 1 line < 3
+        assert!(!info.no_gitignore); // 1 line is enough
     }
 
     #[test]
