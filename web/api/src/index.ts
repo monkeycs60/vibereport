@@ -478,8 +478,8 @@ app.post('/api/scan', async (c) => {
         const security = vpsData.security
         if (security && typeof security === 'object' && security.env_in_git) chaosBadges.push('env-in-git')
 
-        // Compute fingerprint — VPS doesn't return oldest commit sha, use repo URL
-        const fingerprint = `vps:https://github.com/${owner}/${repo}`
+        // Compute fingerprint — normalized GitHub URL (stable across scan methods)
+        const fingerprint = `github.com/${owner}/${repo}`
 
         // Store in DB with scan_source = 'web_vps'
         const id = generateId()
@@ -577,10 +577,8 @@ app.post('/api/scan', async (c) => {
     const grade = gradeFromPoints(points)
     const roast = pickRoast(points, aiRatio)
 
-    // Compute fingerprint from oldest commit
-    const fingerprint = scan.oldestCommitSha
-      ? `${scan.oldestCommitSha}:https://github.com/${owner}/${repo}`
-      : null
+    // Compute fingerprint — normalized GitHub URL (stable across scan methods)
+    const fingerprint = `github.com/${owner}/${repo}`
 
     // Save to database (upsert if fingerprint exists)
     const id = generateId()

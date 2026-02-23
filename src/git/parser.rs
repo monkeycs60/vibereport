@@ -62,6 +62,30 @@ fn strip_url_credentials(url: &str) -> String {
     url.to_string()
 }
 
+/// Normalize a GitHub remote URL to a canonical form: `github.com/user/repo`.
+/// Returns None if the URL is not a GitHub URL.
+/// Handles HTTPS (`https://github.com/user/repo.git`),
+/// SSH (`git@github.com:user/repo.git`), and bare (`github.com/user/repo`).
+fn normalize_github_url(url: &str) -> Option<String> {
+    // SSH: git@github.com:user/repo.git
+    if let Some(rest) = url.strip_prefix("git@github.com:") {
+        let slug = rest.trim_end_matches(".git").trim_end_matches('/');
+        if slug.contains('/') {
+            return Some(format!("github.com/{}", slug));
+        }
+    }
+    // HTTPS or bare: find "github.com/" and extract slug
+    if let Some(pos) = url.find("github.com/") {
+        let slug = url[pos + "github.com/".len()..]
+            .trim_end_matches(".git")
+            .trim_end_matches('/');
+        if slug.contains('/') {
+            return Some(format!("github.com/{}", slug));
+        }
+    }
+    None
+}
+
 /// Walk all commits in HEAD and classify each as AI or Human.
 /// If `since` is Some, only commits at or after the cutoff are counted,
 /// but the root commit hash is still tracked for fingerprinting.
@@ -143,17 +167,26 @@ pub fn analyze_repo(
     let first_commit_date = commits.last().map(|c| c.timestamp);
     let last_commit_date = commits.first().map(|c| c.timestamp);
 
-    // Compute repo fingerprint: root commit hash + remote origin URL
+    // Compute repo fingerprint
+    // For GitHub repos: use normalized URL only (stable across shallow/full clones)
+    // For other repos: use root_commit_hash:url (or root_commit_hash alone if no remote)
     let remote_url = repo.find_remote("origin").ok().and_then(|r| {
         r.url(gix::remote::Direction::Fetch)
             .map(|u| u.to_bstring().to_string())
     });
     let sanitized_remote_url = remote_url.map(|u| strip_url_credentials(&u));
-    let repo_fingerprint = if root_commit_full_hash.is_empty() {
-        None
-    } else {
+    let repo_fingerprint = if let Some(normalized) = sanitized_remote_url
+        .as_deref()
+        .and_then(normalize_github_url)
+    {
+        // GitHub URL → use normalized URL as stable fingerprint
+        Some(normalized)
+    } else if !root_commit_full_hash.is_empty() {
+        // Non-GitHub or no remote → use root commit hash + URL
         let url_part = sanitized_remote_url.as_deref().unwrap_or_default();
         Some(format!("{}:{}", root_commit_full_hash, url_part))
+    } else {
+        None
     };
 
     Ok(GitStats {
@@ -252,5 +285,46 @@ mod tests {
     #[test]
     fn strip_credentials_empty_url() {
         assert_eq!(strip_url_credentials(""), "");
+    }
+
+    #[test]
+    fn normalize_github_https_url() {
+        assert_eq!(
+            normalize_github_url("https://github.com/user/repo.git"),
+            Some("github.com/user/repo".to_string())
+        );
+        assert_eq!(
+            normalize_github_url("https://github.com/user/repo"),
+            Some("github.com/user/repo".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_github_ssh_url() {
+        assert_eq!(
+            normalize_github_url("git@github.com:user/repo.git"),
+            Some("github.com/user/repo".to_string())
+        );
+        assert_eq!(
+            normalize_github_url("git@github.com:user/repo"),
+            Some("github.com/user/repo".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_non_github_url_returns_none() {
+        assert_eq!(
+            normalize_github_url("https://gitlab.com/user/repo.git"),
+            None
+        );
+        assert_eq!(normalize_github_url(""), None);
+    }
+
+    #[test]
+    fn normalize_github_strips_trailing_slash() {
+        assert_eq!(
+            normalize_github_url("https://github.com/user/repo/"),
+            Some("github.com/user/repo".to_string())
+        );
     }
 }
