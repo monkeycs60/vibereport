@@ -5,7 +5,7 @@
 
 # Vibereport
 
-Rust CLI tool. "The Spotify Wrapped for your code."
+Rust CLI tool. "How much of your code is AI-generated?"
 
 ## Conventions
 - Use `thiserror` pattern for errors (enum VibereportError)

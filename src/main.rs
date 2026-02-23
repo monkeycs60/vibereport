@@ -12,7 +12,7 @@ use std::path::Path;
 #[command(
     name = "vibereport",
     version,
-    about = "The Spotify Wrapped for your code"
+    about = "How much of your code is AI-generated?"
 )]
 struct Cli {
     /// Path to git repo, directory of repos, or github:user/repo

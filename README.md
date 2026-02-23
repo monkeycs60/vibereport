@@ -1,80 +1,117 @@
 # vibereport
 
-**The Spotify Wrapped for your code.** How much of your repo is vibe-coded?
+**How much of your code is AI-generated?** Scan any git repo to find out.
 
 ```
-  ╭────────────────────────────────────────────────────────╮
-  │                                                        │
-  │                     VIBE REPORT                        │
-  │               my-project  ⚡                           │
-  │                                                        │
-  ├────────────────────────────────────────────────────────┤
-  │                                                        │
-  │   AI-authored  ..........................  72%          │
-  │   Human-authored  .......................  28%          │
-  │   Total commits  ........................  847          │
-  │                                                        │
-  │   ── AI TOOLS                                          │
-  │     Claude Code  .................  614 (72%)           │
-  │     GitHub Copilot  ..............   12 (1%)            │
-  │                                                        │
-  │   ── PROJECT                                           │
-  │   Dependencies  ...........  42 (npm)                   │
-  │   Tests  .........  12 files [jest, vitest]             │
-  │   Lines of code  ................  24.3K                │
-  │                                                        │
-  │   ── LANGUAGES                                         │
-  │     TypeScript     ████████████░  92.1%                │
-  │     Rust           █░░░░░░░░░░░   5.3%                │
-  │     CSS            ░░░░░░░░░░░░   2.1%                │
-  │                                                        │
-  ├────────────────────────────────────────────────────────┤
-  │                                                        │
-  │            VIBE SCORE: A (75pts)                        │
-  │                                                        │
-  │        "More vibes than version control."               │
-  │                                                        │
-  ╰────────────────────────────────────────────────────────╯
+  ╭────────────────────────────────────────────────────╮
+  │                                                    │
+  │                    VIBE REPORT                     │
+  │             monkeycs60/vibereport  🤖              │
+  │                                                    │
+  ├────────────────────────────────────────────────────┤
+  │                                                    │
+  │   AI-authored  .............................  95%  │
+  │   Human-authored  ...........................  5%  │
+  │   Total commits  ...........................  124  │
+  │                                                    │
+  │   ── AI TOOLS                                      │
+  │     Claude Code  .....................  118 (95%)  │
+  │                                                    │
+  │   ── PROJECT                                       │
+  │   Dependencies  .....................  13 (cargo)  │
+  │   Tests  .................  16 files [cargo test]  │
+  │   Lines of code  ..........................  7.2K  │
+  │                                                    │
+  │   ── LANGUAGES                                     │
+  │     Rust           █████████░░░  76.2%             │
+  │     TypeScript     ███░░░░░░░░░  23.3%             │
+  │     JavaScript     ░░░░░░░░░░░░   0.5%             │
+  │                                                    │
+  ├────────────────────────────────────────────────────┤
+  │                                                    │
+  │   ── SCORE BREAKDOWN                               │
+  │   AI Ratio +57  13 Deps +1                         │
+  │                                                    │
+  │   + Tests                 + Linting                │
+  │   + CI/CD                 + .gitignore             │
+  │   + README                + No .env leaked         │
+  │   + No secrets            + Clean vendor           │
+  │   + No mega commit        + Multiple branches      │
+  │   + AI config                                      │
+  │                                                    │
+  │               VIBE SCORE: B (58pts)                │
+  │                                                    │
+  │         "You're the project manager now."          │
+  │                                                    │
+  ╰────────────────────────────────────────────────────╯
 ```
 
 ## What is this?
 
-vibereport scans your git history and tells you exactly how AI-dependent your codebase is. It detects Claude Code, GitHub Copilot, Codex CLI, and other AI tools from commit signatures and generates a fun "Vibe Score" with a roast.
+vibereport scans your git history and tells you exactly how much of your code is AI-generated. It detects Claude Code, GitHub Copilot, Cursor, Aider, Codex CLI, and Gemini CLI from commit signatures, calculates a "Vibe Score", and roasts your project.
 
 ## Quick Start
 
+Install (macOS / Linux):
 ```bash
-# Install (macOS / Linux)
 curl -fsSL https://vibereport.dev/install.sh | sh
+```
 
-# Install (Windows PowerShell)
-# irm https://vibereport.dev/install.ps1 | iex
+Install (Windows PowerShell):
+```powershell
+irm https://vibereport.dev/install.ps1 | iex
+```
 
-# Or via cargo
-# cargo install vibereport
+Install via cargo:
+```bash
+cargo install vibereport
+```
 
-# Scan your current repo
+Scan your current repo:
+```bash
 vibereport
+```
 
-# Scan a specific repo
+Scan a specific repo:
+```bash
 vibereport /path/to/repo
+```
 
-# Scan ALL repos on your machine
+Scan ALL repos on your machine:
+```bash
 vibereport --scan-all ~/projects
+```
 
-# Scan a public GitHub repo
+Scan a public GitHub repo:
+```bash
 vibereport github:anthropics/claude-code
 vibereport https://github.com/anthropics/claude-code
 vibereport github.com/anthropics/claude-code
+```
 
-# Export as shareable SVG
+Filter commits by time range (YYYY-MM-DD, "6m", "1y", "2y", or "all"):
+```bash
+vibereport --since 6m
+```
+
+Export as shareable SVG:
+```bash
 vibereport --svg report.svg
+```
 
-# Export as JSON
+Export as JSON:
+```bash
 vibereport --json
+```
 
-# Disable auto-share to leaderboard
+Disable auto-share to leaderboard:
+```bash
 vibereport --no-share
+```
+
+Show all options:
+```bash
+vibereport --help
 ```
 
 ## What it detects
@@ -120,26 +157,28 @@ The Vibe Score is a composite metric that measures how "vibe coded" your project
 ## Features
 
 - **Git history analysis** — Scans all commits for AI tool signatures using `gix` (pure Rust, no git binary needed)
+- **Time filtering** — Analyze only recent history with `--since` (supports YYYY-MM-DD, "6m", "1y", "2y", "all")
 - **Project health stats** — Dependencies, tests, languages, security audit
-- **Vibe Score** — Fun composite score from 0-100 with letter grades
-- **Roast taglines** — Burns based on your coding style ("Ships fast, tests never.")
+- **Vibe Score** — Fun composite score from 0-100+ with letter grades and roast taglines
 - **SVG export** — Beautiful shareable images for social media
 - **JSON export** — Machine-readable output for CI pipelines
 - **Timeline** — Monthly AI evolution chart (terminal + SVG)
 - **Share by default** — Auto-shares to global leaderboard (--no-share to opt out)
-- **Global leaderboard** — Compare your vibe score with other devs
-- **Trend tracking** — See how AI adoption evolves over time
 - **Multi-repo scan** — Scan all repos on your machine at once
 - **Remote scan** — Analyze any public GitHub repo without cloning locally
 - **Web scan** — Scan any GitHub repo from the browser (up to 100k commits)
+- **[GitHub AI Index](https://vibereport.dev/github-index)** — Tracks AI adoption across 1000 top GitHub repos daily
+- **[Community leaderboard](https://vibereport.dev/community)** — Compare your vibe score with other devs
+- **[Docs](https://vibereport.dev/docs)** — Full documentation for the CLI and scoring system
 
 ## Web
 
 Visit [vibereport.dev](https://vibereport.dev) to:
 - Scan any public GitHub repo instantly (analyzes all commits)
-- View the global leaderboard
-- Browse all scanned repos
+- Browse the [GitHub AI Index](https://vibereport.dev/github-index) — daily tracking of 1000 top repos
+- View the [community leaderboard](https://vibereport.dev/community) — rankings by AI% or Vibe Score
 - Track AI adoption trends over time
+- Read the [docs](https://vibereport.dev/docs) — CLI usage, scoring methodology, detection details
 - Share your report with a permalink
 
 ## How it works
@@ -147,7 +186,7 @@ Visit [vibereport.dev](https://vibereport.dev) to:
 1. Parses git log with [`gix`](https://github.com/Byron/gitoxide) (pure Rust, no git binary needed for local repos)
 2. Detects AI tools from `Co-Authored-By` trailers and commit message patterns
 3. Analyzes project structure (dependencies, test files, language breakdown, security)
-4. Computes a composite "Vibe Score" (0-100)
+4. Computes a composite "Vibe Score" (0-100+)
 5. Generates a roast tagline tailored to your project
 6. Renders a terminal report with box-drawing UI, or exports as SVG/JSON
 

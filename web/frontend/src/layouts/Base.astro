@@ -8,14 +8,108 @@ interface Props {
 const SITE_URL = 'https://www.vibereport.dev';
 
 const {
-  title = 'vibereport - The Spotify Wrapped for your code',
+  title = 'vibereport - How much of your code is AI-generated?',
   description = 'Analyze any git repo and discover how much was AI-generated. Get your vibe score, grade, and a brutally honest roast.',
   ogImage = '/api/og',
 } = Astro.props;
 
 // Ensure og:image is always an absolute URL
 const absoluteOgImage = ogImage.startsWith('http') ? ogImage : `${SITE_URL}${ogImage}`;
+
+// Canonical URL derived from the current page
+const canonicalURL = new URL(Astro.url.pathname, SITE_URL).href;
+
 import Analytics from '@vercel/analytics/astro';
+
+// JSON-LD structured data
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "vibereport",
+  "url": SITE_URL,
+  "description": "Analyze any git repo and discover how much was AI-generated. Get your vibe score, grade, and a brutally honest roast.",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": `${SITE_URL}/scan?repo={search_term_string}`,
+    "query-input": "required name=search_term_string"
+  }
+};
+
+const softwareSchema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "vibereport",
+  "description": "CLI tool that analyzes git repos to detect AI-generated code. How much of your code is AI-generated?",
+  "url": SITE_URL,
+  "operatingSystem": "Linux, macOS, Windows",
+  "applicationCategory": "DeveloperApplication",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "downloadUrl": "https://github.com/monkeycs60/vibereport/releases",
+  "softwareVersion": "latest",
+  "author": {
+    "@type": "Organization",
+    "name": "vibereport"
+  }
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How much of my code is AI-generated?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "vibereport analyzes your git commit history to calculate the percentage of AI-generated commits. It detects AI coding tools like Claude Code, Cursor, Aider, GitHub Copilot, Codex CLI, and Gemini CLI by inspecting commit message signatures, Co-Authored-By trailers, and email patterns. Run 'vibereport' in any git repo to get your AI percentage instantly."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What AI coding tools can vibereport detect?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "vibereport detects 6 AI coding tools: Claude Code (Anthropic), Cursor, Aider, Codex CLI (OpenAI), GitHub Copilot, and Gemini CLI (Google). Detection works by analyzing commit message signatures such as Co-Authored-By trailers, specific email patterns, and message prefixes. Tools that do not sign commits, like Windsurf or Copilot inline autocomplete, are not detectable."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does the vibe score work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The vibe score is a composite metric that measures code quality and development practices. It factors in AI commit ratio (0-60 points), test coverage, .env files in git, hardcoded secrets, dependency bloat, linting and CI/CD setup, and other signals like node_modules in git or mega commits. Scores are uncapped and can exceed 100 for an S+ grade. Lower scores indicate healthier repos."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I install vibereport?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Install vibereport with a single command. On Linux or macOS: curl -fsSL https://vibereport.dev/install.sh | sh. On Windows: irm https://vibereport.dev/install.ps1 | iex. You can also install via cargo: cargo install vibereport. After installation, run 'vibereport' in any git repository to analyze it."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I scan a GitHub repo without cloning it?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. You can scan any public GitHub repository remotely using 'vibereport github:user/repo' from the CLI, or use the web scanner at vibereport.dev/scan. The web scanner fetches commit data via the GitHub API and provides instant results including AI percentage, vibe score, and grade."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What is the GitHub AI Index?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The GitHub AI Index tracks AI-generated code across 1000 popular GitHub repositories, selected quarterly by stars and activity. It provides daily snapshots of AI adoption trends, showing how AI coding tools are being used across the open source ecosystem. The index currently covers over 600,000 commits across nearly 900 active repositories."
+      }
+    }
+  ]
+};
 ---
 
 <!doctype html>
@@ -24,21 +118,44 @@ import Analytics from '@vercel/analytics/astro';
     <Analytics />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="description" content={description} />
+    <meta name="keywords" content="AI code detection, vibe coding, AI-generated code, git analysis, code quality, developer tools, Claude Code, Cursor, GitHub Copilot, Aider, vibe score, AI coding tools" />
+    <meta name="author" content="vibereport" />
+    <meta name="theme-color" content="#1a1b26" />
+
+    <!-- Open Graph -->
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={absoluteOgImage} />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:site_name" content="vibereport" />
+
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={absoluteOgImage} />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href={canonicalURL} />
+
+    <!-- Preconnect / DNS Prefetch -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://vibereport-api.clement-serizay.workers.dev" />
+    <link rel="preconnect" href="https://vibereport-api.clement-serizay.workers.dev" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json" set:html={JSON.stringify(websiteSchema)} />
+    <script type="application/ld+json" set:html={JSON.stringify(softwareSchema)} />
+    <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+
     <title>{title}</title>
     <style is:global>
       * {
@@ -85,7 +202,7 @@ import Analytics from '@vercel/analytics/astro';
   </head>
   <body class="flex flex-col min-h-screen">
     <!-- Navigation -->
-    <nav class="sticky top-0 z-50 border-b border-tokyo-border/50 backdrop-blur-xl bg-tokyo-bg/80">
+    <nav class="sticky top-0 z-50 border-b border-tokyo-border/50 backdrop-blur-xl bg-tokyo-bg/80" aria-label="Main navigation">
       <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-14">
           <a href="/" class="flex items-center gap-2 group">

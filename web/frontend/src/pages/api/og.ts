@@ -32,7 +32,7 @@ export const GET: APIRoute = async ({ url }) => {
   let aiPct = '';
   let score = '';
   let totalCommits = '';
-  let roast = 'The Spotify Wrapped for your code.';
+  let roast = 'How much of your code is AI-generated?';
   let aiRatio = 0;
   let hasReport = false;
 
@@ -346,7 +346,7 @@ export const GET: APIRoute = async ({ url }) => {
               type: 'span',
               props: {
                 style: { fontSize: 24, color: '#c0caf5' },
-                children: 'The Spotify Wrapped for your code.',
+                children: 'How much of your code is AI-generated?',
               },
             },
             {
