@@ -3,7 +3,7 @@ members = [".", "vps-worker"]
 
 [package]
 name = "vibereport"
-version = "0.1.2"
+version = "1.0.0"
 edition = "2021"
 description = "How much of your code is AI-generated? Scan any git repo to detect AI coding tools and get your vibe score."
 license = "MIT"

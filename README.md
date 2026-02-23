@@ -1,5 +1,10 @@
 # vibereport
 
+[![CI](https://github.com/monkeycs60/vibereport/actions/workflows/ci.yml/badge.svg)](https://github.com/monkeycs60/vibereport/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/vibereport.svg)](https://crates.io/crates/vibereport)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/monkeycs60/vibereport)](https://github.com/monkeycs60/vibereport/stargazers)
+
 **How much of your code is AI-generated?** Scan any git repo to find out.
 
 ```

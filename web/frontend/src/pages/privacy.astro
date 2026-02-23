@@ -1,0 +1,91 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base
+  title="Privacy Policy - vibereport"
+  description="How vibereport handles your data."
+>
+  <section class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
+    <a
+      href="/"
+      class="inline-flex items-center gap-1 text-xs text-tokyo-dimmed hover:text-tokyo-text transition-colors mb-8"
+    >
+      &larr; Back to home
+    </a>
+
+    <h1 class="text-2xl font-bold text-tokyo-text mb-8">Privacy Policy</h1>
+
+    <div class="space-y-8 text-sm text-tokyo-dimmed leading-relaxed">
+      <div>
+        <h2 class="text-base font-semibold text-tokyo-text mb-2">What we collect</h2>
+        <p>
+          vibereport analyzes <strong class="text-tokyo-text">commit messages only</strong>.
+          We never read, store, or transmit your source code. The CLI parses your local git history
+          and extracts metadata: commit counts, author trailers, timestamps, and language statistics
+          from file extensions.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-base font-semibold text-tokyo-text mb-2">Sharing</h2>
+        <p>
+          By default, scan results are uploaded to vibereport.dev so they appear on the
+          community leaderboard. You can opt out with <code class="text-tokyo-cyan">--no-share</code>.
+          Shared reports include: repository name, AI ratio, vibe score, grade, roast, language breakdown,
+          and commit counts. No source code, diffs, or file contents are ever sent.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-base font-semibold text-tokyo-text mb-2">Web scans</h2>
+        <p>
+          When you scan a repo via the website, we fetch commit data from the GitHub API.
+          Results are cached for 10 minutes per repository. The same metadata is stored as CLI scans.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-base font-semibold text-tokyo-text mb-2">Storage</h2>
+        <p>
+          Reports are stored in Cloudflare D1 (SQLite). We use Cloudflare Workers for the API
+          and Vercel for the frontend. No third-party data brokers or ad networks.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-base font-semibold text-tokyo-text mb-2">Analytics</h2>
+        <p>
+          We use Vercel Analytics for basic page view metrics. No cookies, no cross-site tracking,
+          no personal data collection.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-base font-semibold text-tokyo-text mb-2">Data deletion</h2>
+        <p>
+          Want your report removed? Open an issue on
+          <a
+            href="https://github.com/monkeycs60/vibereport/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-tokyo-cyan hover:text-tokyo-cyan/80 transition-colors"
+          >GitHub</a> with the repository name and we'll delete it.
+        </p>
+      </div>
+
+      <div>
+        <h2 class="text-base font-semibold text-tokyo-text mb-2">Contact</h2>
+        <p>
+          Questions? Open an issue on
+          <a
+            href="https://github.com/monkeycs60/vibereport"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-tokyo-cyan hover:text-tokyo-cyan/80 transition-colors"
+          >GitHub</a>.
+        </p>
+      </div>
+    </div>
+  </section>
+</Base>
