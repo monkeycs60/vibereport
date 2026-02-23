@@ -2,49 +2,102 @@
 interface Props {
   snapshots: Array<{
     snapshot_date: string;
+    total_repos?: number;
     total_commits: number;
     total_ai_commits: number;
     ai_percent: number;
   }>;
 }
 
-const { snapshots } = Astro.props;
+const { snapshots: rawSnapshots } = Astro.props;
 
-// Chart dimensions
+// Extract repo count from the latest snapshot (if available)
+const repoCount = rawSnapshots.length > 0
+  ? rawSnapshots[rawSnapshots.length - 1].total_repos ?? 0
+  : 0;
+
+// ── Weekly aggregation: when >14 daily snapshots, group by week and show per-week AI% ──
+// This avoids: (1) visual clutter from 50+ dots, (2) cumulative convergence artifact
+function getWeekMonday(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  const day = d.getUTCDay() || 7; // Mon=1..Sun=7
+  d.setUTCDate(d.getUTCDate() - day + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function aggregateWeekly(snaps: typeof rawSnapshots): typeof rawSnapshots {
+  // Group by ISO week (Monday)
+  const weekMap = new Map<string, typeof rawSnapshots>();
+  for (const s of snaps) {
+    const wk = getWeekMonday(s.snapshot_date);
+    if (!weekMap.has(wk)) weekMap.set(wk, []);
+    weekMap.get(wk)!.push(s);
+  }
+
+  const sorted = [...weekMap.entries()].sort(([a], [b]) => a.localeCompare(b));
+
+  // Merge incomplete first week (< 3 days) into next full week
+  // Last week is kept as-is: it's a "live" point for the current week in progress
+  if (sorted.length >= 2) {
+    const first = sorted[0];
+    if (first[1].length < 3) {
+      sorted[1][1].unshift(...first[1]);
+      sorted.shift();
+    }
+  }
+
+  // Take the last snapshot per week (highest cumulative values)
+  const cumulative = sorted.map(([_, entries]) => {
+    entries.sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date));
+    return entries[entries.length - 1];
+  });
+
+  // Compute per-week deltas: each week's AI% = (new AI commits that week) / (new total commits that week)
+  return cumulative.map((curr, i) => {
+    if (i === 0) return { ...curr }; // First week: use raw cumulative
+    const prev = cumulative[i - 1];
+    const total = Math.max(0, curr.total_commits - prev.total_commits);
+    const ai = Math.max(0, curr.total_ai_commits - prev.total_ai_commits);
+    const pct = total > 0 ? Math.round((ai / total) * 10000) / 100 : 0;
+    return {
+      snapshot_date: curr.snapshot_date,
+      total_commits: total,
+      total_ai_commits: ai,
+      ai_percent: pct,
+    };
+  });
+}
+
+const isWeekly = rawSnapshots.length > 14;
+const snapshots = isWeekly ? aggregateWeekly(rawSnapshots) : rawSnapshots;
+
+// ── Chart dimensions ──
 const viewW = 800;
-const viewH = 250;
+const viewH = 260;
 const chartLeft = 50;
-const chartRight = 780;
-const chartTop = 20;
-const chartBottom = 200;
+const chartRight = 770;
+const chartTop = 25;
+const chartBottom = 210;
 const chartW = chartRight - chartLeft;
 const chartH = chartBottom - chartTop;
 
-// Dynamic Y-axis: auto-scale based on data
-const maxAi = snapshots.length > 0
-  ? Math.max(...snapshots.map(s => s.ai_percent))
-  : 5;
-// Y max: round up to next nice step, minimum 5%
+// ── Dynamic Y-axis ──
+const maxAi = snapshots.length > 0 ? Math.max(...snapshots.map(s => s.ai_percent)) : 5;
 const niceSteps = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
-const yMax = niceSteps.find(s => s >= maxAi * 1.8) || 100;
-
-// Generate Y-axis labels (4-5 evenly spaced)
+const yMax = niceSteps.find(s => s >= maxAi * 1.5) || 100;
 const yLabelCount = yMax <= 10 ? 5 : 4;
-const yLabels = Array.from({ length: yLabelCount + 1 }, (_, i) => {
-  const val = (yMax / yLabelCount) * i;
-  return Math.round(val * 10) / 10;
-});
+const yLabels = Array.from({ length: yLabelCount + 1 }, (_, i) =>
+  Math.round((yMax / yLabelCount) * i * 10) / 10
+);
 
-// Map data to coordinates using dynamic scale
+// ── Map data to coordinates ──
 const points = snapshots.map((s, i) => {
   const x = snapshots.length === 1
     ? chartLeft + chartW / 2
     : chartLeft + (i / (snapshots.length - 1)) * chartW;
-  const aiPct = Math.min(Math.max(s.ai_percent, 0), yMax);
-  const yAi = chartBottom - (aiPct / yMax) * chartH;
+  const yAi = chartBottom - (Math.min(Math.max(s.ai_percent, 0), yMax) / yMax) * chartH;
   return {
-    x,
-    yAi,
+    x, yAi,
     aiPct: s.ai_percent,
     date: s.snapshot_date,
     totalCommits: s.total_commits,
@@ -52,43 +105,64 @@ const points = snapshots.map((s, i) => {
   };
 });
 
-// Build SVG paths for areas (only with 2+ points)
+// ── SVG paths ──
 let aiAreaPath = '';
 let aiLinePath = '';
-
 if (points.length >= 2) {
-  const forwardAi = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.yAi.toFixed(1)}`).join(' ');
-  aiAreaPath = `${forwardAi} L${points[points.length - 1].x.toFixed(1)},${chartBottom} L${points[0].x.toFixed(1)},${chartBottom} Z`;
-  aiLinePath = forwardAi;
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.yAi.toFixed(1)}`).join(' ');
+  aiAreaPath = `${line} L${points[points.length - 1].x.toFixed(1)},${chartBottom} L${points[0].x.toFixed(1)},${chartBottom} Z`;
+  aiLinePath = line;
 }
 
-// Format date: "2026-02-21" -> "Feb 21"
+// ── Smart label placement with minimum pixel spacing ──
+function selectIndices(pts: typeof points, minSpacing: number, maxLabels: number): Set<number> {
+  const indices = new Set<number>();
+  if (pts.length === 0) return indices;
+  indices.add(0);
+  indices.add(pts.length - 1);
+
+  const step = Math.max(1, Math.ceil(pts.length / maxLabels));
+  for (let i = step; i < pts.length - 1; i += step) {
+    let tooClose = false;
+    for (const idx of indices) {
+      if (Math.abs(pts[i].x - pts[idx].x) < minSpacing) { tooClose = true; break; }
+    }
+    if (!tooClose) indices.add(i);
+  }
+  return indices;
+}
+
+const valueLabelIndices = selectIndices(points, 90, 8);
+const xLabelIndices = selectIndices(points, 70, 10);
+
+// ── Dynamic dot size ──
+const dotR = snapshots.length > 30 ? 2.5 : snapshots.length > 12 ? 3 : 3.5;
+
+// ── Helpers ──
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function formatDate(d: string): string {
   const parts = d.split('-');
-  const monthIdx = parseInt(parts[1], 10) - 1;
-  const day = parseInt(parts[2], 10);
-  return `${monthNames[monthIdx]} ${day}`;
+  return `${monthNames[parseInt(parts[1], 10) - 1]} ${parseInt(parts[2], 10)}`;
 }
-
 function formatNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
 
-// Human % for annotation
 const latestAi = snapshots.length > 0 ? snapshots[snapshots.length - 1].ai_percent : 0;
 const humanPct = (100 - latestAi).toFixed(1);
+const periodLabel = isWeekly ? 'AI % per week' : 'AI commits';
+const tooltipSuffix = isWeekly ? ' this week' : ' total';
 ---
 
 <div class="w-full overflow-hidden rounded-xl border border-tokyo-border/30 bg-tokyo-surface/30 p-4">
   {snapshots.length >= 2 ? (
-    <svg viewBox={`0 0 ${viewW} ${viewH}`} class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox={`0 0 ${viewW} ${viewH}`} class="w-full h-auto trend-chart" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="aiAreaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#f7768e" stop-opacity="0.5" />
-          <stop offset="100%" stop-color="#f7768e" stop-opacity="0.08" />
+          <stop offset="0%" stop-color="#f7768e" stop-opacity="0.35" />
+          <stop offset="100%" stop-color="#f7768e" stop-opacity="0.04" />
         </linearGradient>
       </defs>
 
@@ -97,12 +171,8 @@ const humanPct = (100 - latestAi).toFixed(1);
         const y = chartBottom - (pct / yMax) * chartH;
         return (
           <line
-            x1={chartLeft}
-            y1={y}
-            x2={chartRight}
-            y2={y}
-            stroke="#3b4261"
-            stroke-width="0.5"
+            x1={chartLeft} y1={y} x2={chartRight} y2={y}
+            stroke="#3b4261" stroke-width="0.5"
             stroke-dasharray={pct === 0 ? 'none' : '4,4'}
           />
         );
@@ -112,108 +182,86 @@ const humanPct = (100 - latestAi).toFixed(1);
       {yLabels.map((pct) => {
         const y = chartBottom - (pct / yMax) * chartH;
         return (
-          <text
-            x={chartLeft - 8}
-            y={y + 4}
-            text-anchor="end"
-            fill="#565f89"
-            font-size="10"
-            font-family="JetBrains Mono, monospace"
-          >
+          <text x={chartLeft - 8} y={y + 4} text-anchor="end" fill="#565f89" font-size="10" font-family="JetBrains Mono, monospace">
             {pct % 1 === 0 ? pct : pct.toFixed(1)}%
           </text>
         );
       })}
 
-      {/* AI area (red/pink gradient) */}
+      {/* Area fill */}
       <path d={aiAreaPath} fill="url(#aiAreaGrad)" />
 
-      {/* AI boundary line */}
-      <path d={aiLinePath} fill="none" stroke="#f7768e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+      {/* Line */}
+      <path d={aiLinePath} fill="none" stroke="#f7768e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
 
-      {/* Data point circles with hover tooltips */}
-      {points.map((p) => (
-        <g class="trend-point" style="cursor: pointer;">
-          {/* Larger invisible hit area for hover */}
-          <circle cx={p.x} cy={p.yAi} r="12" fill="transparent" />
-          {/* Visible point */}
-          <circle cx={p.x} cy={p.yAi} r="4" fill="#1a1b26" stroke="#f7768e" stroke-width="2.5" />
-          <title>{`${formatDate(p.date)}: ${p.aiPct.toFixed(2)}% AI (${formatNum(p.aiCommits)} AI / ${formatNum(p.totalCommits)} total)`}</title>
-        </g>
-      ))}
-
-      {/* Value labels on each point */}
+      {/* Data points: dot + value label (static or hover-only) */}
       {points.map((p, i) => {
-        const showEvery = snapshots.length > 20 ? 5 : snapshots.length > 10 ? 3 : 1;
-        if (i % showEvery !== 0 && i !== snapshots.length - 1) return null;
+        const isStatic = valueLabelIndices.has(i);
         const isFirst = i === 0;
         const isLast = i === snapshots.length - 1;
         const anchor = isFirst ? 'start' : isLast ? 'end' : 'middle';
-        const xOffset = isFirst ? 6 : isLast ? -6 : 0;
+        const xOff = isFirst ? 4 : isLast ? -4 : 0;
         return (
-          <text
-            x={p.x + xOffset}
-            y={p.yAi - 12}
-            text-anchor={anchor}
-            fill="#f7768e"
-            font-size="10"
-            font-weight="bold"
-            font-family="JetBrains Mono, monospace"
-          >
-            {p.aiPct.toFixed(2)}%
-          </text>
+          <g class="trend-point" style="cursor: pointer;">
+            <circle cx={p.x} cy={p.yAi} r="14" fill="transparent" />
+            <circle class="dot" cx={p.x} cy={p.yAi} r={dotR} fill="#1a1b26" stroke="#f7768e" stroke-width="2" />
+            <text
+              x={p.x + xOff} y={p.yAi - 14}
+              text-anchor={anchor}
+              fill="#f7768e" font-size="11" font-weight="bold"
+              font-family="JetBrains Mono, monospace"
+              class={isStatic ? 'value-label' : 'value-label hover-only'}
+            >
+              {p.aiPct.toFixed(1)}%
+            </text>
+            <title>{`${formatDate(p.date)}: ${p.aiPct.toFixed(2)}% AI (${formatNum(p.aiCommits)} AI / ${formatNum(p.totalCommits)}${tooltipSuffix})`}</title>
+          </g>
         );
       })}
 
-      {/* X-axis date labels */}
+      {/* X-axis date labels (smart placement — no overlap) */}
       {points.map((p, i) => {
-        const showEvery = snapshots.length > 14 ? 3 : snapshots.length > 7 ? 2 : 1;
-        if (i % showEvery !== 0 && i !== snapshots.length - 1) return null;
+        if (!xLabelIndices.has(i)) return null;
+        const isFirst = i === 0;
+        const isLast = i === snapshots.length - 1;
+        const anchor = isFirst ? 'start' : isLast ? 'end' : 'middle';
         return (
-          <text
-            x={p.x}
-            y={chartBottom + 20}
-            text-anchor="middle"
-            fill="#565f89"
-            font-size="9"
-            font-family="JetBrains Mono, monospace"
-          >
+          <text x={p.x} y={chartBottom + 22} text-anchor={anchor} fill="#565f89" font-size="9" font-family="JetBrains Mono, monospace">
             {formatDate(p.date)}
           </text>
         );
       })}
 
-      {/* Label: "AI %" bottom-left */}
-      <text
-        x={chartLeft + 10}
-        y={chartBottom - 8}
-        fill="#f7768e"
-        font-size="10"
-        font-family="JetBrains Mono, monospace"
-        opacity="0.8"
-      >
-        AI commits
+      {/* Period label bottom-left */}
+      <text x={chartLeft + 10} y={chartBottom - 8} fill="#f7768e" font-size="10" font-family="JetBrains Mono, monospace" opacity="0.7">
+        {periodLabel}
       </text>
 
       {/* Human annotation top-right */}
-      <text
-        x={chartRight - 10}
-        y={chartTop + 14}
-        text-anchor="end"
-        fill="#7aa2f7"
-        font-size="9"
-        font-family="JetBrains Mono, monospace"
-        opacity="0.5"
-      >
+      <text x={chartRight - 10} y={chartTop + 14} text-anchor="end" fill="#7aa2f7" font-size="9" font-family="JetBrains Mono, monospace" opacity="0.5">
         {humanPct}% Human
       </text>
     </svg>
+    <div class="flex items-center justify-center gap-2.5 mt-3 text-xs font-mono text-tokyo-dimmed">
+      <span class="flex items-center gap-1.5">
+        <span class="inline-block w-3 h-0.5 bg-[#f7768e] rounded"></span>
+        AI-generated commits
+      </span>
+      <span class="opacity-40">&middot;</span>
+      <span>{isWeekly ? 'Weekly' : 'Daily'}</span>
+      {repoCount > 0 && (
+        <>
+          <span class="opacity-40">&middot;</span>
+          <span>Tracked across {repoCount} top GitHub repos</span>
+        </>
+      )}
+    </div>
   ) : snapshots.length === 1 ? (
     <svg viewBox={`0 0 ${viewW} ${viewH}`} class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="aiAreaGradSingle" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#f7768e" stop-opacity="0.5" />
-          <stop offset="100%" stop-color="#f7768e" stop-opacity="0.08" />
+          <stop offset="0%" stop-color="#f7768e" stop-opacity="0.35" />
+          <stop offset="100%" stop-color="#f7768e" stop-opacity="0.04" />
         </linearGradient>
       </defs>
 
@@ -221,15 +269,7 @@ const humanPct = (100 - latestAi).toFixed(1);
       {yLabels.map((pct) => {
         const y = chartBottom - (pct / yMax) * chartH;
         return (
-          <line
-            x1={chartLeft}
-            y1={y}
-            x2={chartRight}
-            y2={y}
-            stroke="#3b4261"
-            stroke-width="0.5"
-            stroke-dasharray={pct === 0 ? 'none' : '4,4'}
-          />
+          <line x1={chartLeft} y1={y} x2={chartRight} y2={y} stroke="#3b4261" stroke-width="0.5" stroke-dasharray={pct === 0 ? 'none' : '4,4'} />
         );
       })}
 
@@ -237,14 +277,7 @@ const humanPct = (100 - latestAi).toFixed(1);
       {yLabels.map((pct) => {
         const y = chartBottom - (pct / yMax) * chartH;
         return (
-          <text
-            x={chartLeft - 8}
-            y={y + 4}
-            text-anchor="end"
-            fill="#565f89"
-            font-size="10"
-            font-family="JetBrains Mono, monospace"
-          >
+          <text x={chartLeft - 8} y={y + 4} text-anchor="end" fill="#565f89" font-size="10" font-family="JetBrains Mono, monospace">
             {pct % 1 === 0 ? pct : pct.toFixed(1)}%
           </text>
         );
@@ -252,15 +285,7 @@ const humanPct = (100 - latestAi).toFixed(1);
 
       {/* Single data point */}
       <circle cx={points[0].x} cy={points[0].yAi} r="5" fill="#1a1b26" stroke="#f7768e" stroke-width="2.5" />
-      <text
-        x={points[0].x}
-        y={points[0].yAi - 16}
-        text-anchor="middle"
-        fill="#f7768e"
-        font-size="13"
-        font-weight="bold"
-        font-family="JetBrains Mono, monospace"
-      >
+      <text x={points[0].x} y={points[0].yAi - 16} text-anchor="middle" fill="#f7768e" font-size="13" font-weight="bold" font-family="JetBrains Mono, monospace">
         {points[0].aiPct.toFixed(2)}% AI &mdash; Day 1
       </text>
     </svg>
@@ -268,3 +293,20 @@ const humanPct = (100 - latestAi).toFixed(1);
     <p class="text-tokyo-dimmed text-sm text-center py-8 font-mono">Day 1 of tracking</p>
   )}
 </div>
+
+<style>
+  .trend-point .dot {
+    transition: r 0.15s ease, stroke-width 0.15s ease;
+  }
+  .trend-point:hover .dot {
+    r: 5.5;
+    stroke-width: 2.5;
+  }
+  .trend-point .value-label.hover-only {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .trend-point:hover .value-label.hover-only {
+    opacity: 1;
+  }
+</style>
