@@ -206,11 +206,15 @@ const totalItems = leaderboard.total;
       return 'text-tokyo-text';
     }
 
-    function rankEmoji(rank) {
-      if (rank === 1) return '\u{1F947}';
-      if (rank === 2) return '\u{1F948}';
-      if (rank === 3) return '\u{1F949}';
+    function rankDisplay(rank) {
       return '#' + rank;
+    }
+
+    function medalClass(rank) {
+      if (rank === 1) return 'text-yellow-400';
+      if (rank === 2) return 'text-gray-300';
+      if (rank === 3) return 'text-amber-600';
+      return 'text-tokyo-dimmed';
     }
 
     function createRow(entry, rank) {
@@ -223,10 +227,10 @@ const totalItems = leaderboard.total;
 
       // Rank cell
       const tdRank = document.createElement('td');
-      tdRank.className = 'py-3 px-3 text-tokyo-dimmed font-medium';
+      tdRank.className = 'py-3 px-3 font-medium';
       const rankSpan = document.createElement('span');
-      rankSpan.className = rank <= 3 ? 'text-base' : 'text-sm';
-      rankSpan.textContent = sort === 'recent' ? '' : rankEmoji(rank);
+      rankSpan.className = 'text-sm font-bold ' + medalClass(rank);
+      rankSpan.textContent = sort === 'recent' ? '' : rankDisplay(rank);
       tdRank.appendChild(rankSpan);
       tr.appendChild(tdRank);
 

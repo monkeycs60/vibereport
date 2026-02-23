@@ -10,12 +10,15 @@ interface Props {
 
 const { entries, startRank = 1 } = Astro.props;
 
-function rankEmoji(rank: number): string {
-  if (rank === 1) return '\u{1F947}';
-  if (rank === 2) return '\u{1F948}';
-  if (rank === 3) return '\u{1F949}';
+function rankDisplay(rank: number): string {
+  if (rank === 1) return '#1';
+  if (rank === 2) return '#2';
+  if (rank === 3) return '#3';
   return `#${rank}`;
 }
+
+const medalClass = (rank: number) =>
+  rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-gray-300' : rank === 3 ? 'text-amber-600' : 'text-tokyo-dimmed';
 ---
 
 <div class="overflow-x-auto">
@@ -36,9 +39,9 @@ function rankEmoji(rank: number): string {
         const colorClass = gradeColor(entry.grade);
         return (
           <tr class="border-b border-tokyo-border/20 hover:bg-tokyo-surface/50 transition-colors group">
-            <td class="py-3 px-3 text-tokyo-dimmed font-medium">
-              <span class={rank <= 3 ? 'text-base' : 'text-sm'}>
-                {rankEmoji(rank)}
+            <td class="py-3 px-3 font-medium">
+              <span class={`text-sm font-bold ${medalClass(rank)}`}>
+                {rankDisplay(rank)}
               </span>
             </td>
             <td class="py-3 px-3">
