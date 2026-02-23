@@ -289,12 +289,15 @@ app.post('/api/reports', async (c) => {
   const aiCommits = typeof body.ai_commits === 'number' ? body.ai_commits : 0
   const vibeScore = typeof body.vibe_score === 'number' ? body.vibe_score : (body.score_points as number)
 
+  let reportId = id
   if (fingerprint) {
     // Upsert: update existing report if fingerprint matches
     await db.prepare(
       `INSERT INTO reports (id, repo_fingerprint, github_username, repo_name, ai_ratio, ai_tool, score_points, score_grade, roast, deps_count, has_tests, total_lines, languages, total_commits, ai_commits, vibe_score, chaos_badges, scan_source, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'cli', datetime('now'))
        ON CONFLICT(repo_fingerprint) DO UPDATE SET
+         github_username = excluded.github_username,
+         repo_name = excluded.repo_name,
          ai_ratio = excluded.ai_ratio,
          ai_tool = excluded.ai_tool,
          score_points = excluded.score_points,
@@ -316,6 +319,11 @@ app.post('/api/reports', async (c) => {
       depsCount, hasTests, totalLines, languages,
       totalCommits, aiCommits, vibeScore, validatedBadges,
     ).run()
+    // Retrieve the actual stored id (upsert keeps original id on conflict)
+    const existing = await db.prepare(
+      `SELECT id FROM reports WHERE repo_fingerprint = ?`
+    ).bind(fingerprint).first()
+    if (existing) reportId = String(existing.id)
   } else {
     // No fingerprint: plain insert (for backwards compatibility)
     await db.prepare(
@@ -346,8 +354,8 @@ app.post('/api/reports', async (c) => {
   const percentile = ((total - rank) / total) * 100
 
   return c.json({
-    id,
-    url: `https://www.vibereport.dev/r/${id}`,
+    id: reportId,
+    url: `https://www.vibereport.dev/r/${reportId}`,
     rank,
     percentile: Math.round(percentile * 10) / 10,
   })
