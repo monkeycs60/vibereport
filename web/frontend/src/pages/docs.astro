@@ -20,10 +20,10 @@ import Base from '../layouts/Base.astro';
       <ul class="space-y-1.5 text-sm">
         <li><a href="#install" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">Install</a></li>
         <li><a href="#usage" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">Usage</a></li>
+        <li><a href="#options" class="text-tokyo-cyan hover:text-tokyo-text transition-colors pl-4">Options</a></li>
         <li><a href="#what-gets-scanned" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">What gets scanned</a></li>
         <li><a href="#detected-ai-tools" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">Detected AI tools</a></li>
         <li><a href="#scoring" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">Scoring</a></li>
-        <li><a href="#output-formats" class="text-tokyo-cyan hover:text-tokyo-text transition-colors">Output formats</a></li>
       </ul>
     </nav>
 
@@ -119,6 +119,81 @@ vibereport /path/to/repo</code></pre>
           <a href="/scan" class="text-tokyo-cyan hover:underline">vibereport.dev/scan</a>
           <span class="text-tokyo-dimmed"> &mdash; no install required</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Options -->
+    <div id="options" class="mb-14 scroll-mt-20">
+      <h2 class="text-xl font-bold text-tokyo-text mb-4 flex items-center gap-2">
+        <span class="text-tokyo-cyan">#</span> Options
+      </h2>
+      <p class="text-sm text-tokyo-dimmed mb-5">
+        Flags you can combine with any scan mode.
+      </p>
+
+      <!-- --since -->
+      <div class="mb-4 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-tokyo-border/20 flex items-center justify-between">
+          <p class="text-xs text-tokyo-text font-medium">Filter commits by date</p>
+          <button data-copy="vibereport --since 6m" class="copy-btn text-tokyo-dimmed hover:text-tokyo-cyan transition-colors" title="Copy to clipboard">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>
+          </button>
+        </div>
+        <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport --since 2025-01-01
+vibereport --since 6m
+vibereport --since 1y</code></pre>
+        <div class="px-4 pb-4 text-xs text-tokyo-dimmed">
+          Accepted values: <code class="text-tokyo-green">YYYY-MM-DD</code>, <code class="text-tokyo-green">6m</code>, <code class="text-tokyo-green">1y</code>, <code class="text-tokyo-green">2y</code>, or <code class="text-tokyo-green">all</code> (default).
+        </div>
+      </div>
+
+      <!-- --no-share -->
+      <div class="mb-4 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-tokyo-border/20 flex items-center justify-between">
+          <p class="text-xs text-tokyo-text font-medium">Keep results private</p>
+          <button data-copy="vibereport --no-share" class="copy-btn text-tokyo-dimmed hover:text-tokyo-cyan transition-colors" title="Copy to clipboard">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>
+          </button>
+        </div>
+        <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport --no-share</code></pre>
+        <div class="px-4 pb-4 text-xs text-tokyo-dimmed">
+          By default, results are shared to the <a href="/leaderboard" class="text-tokyo-cyan hover:underline">community leaderboard</a>. Use this flag to disable sharing.
+        </div>
+      </div>
+
+      <!-- --json -->
+      <div class="mb-4 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-tokyo-border/20 flex items-center justify-between">
+          <p class="text-xs text-tokyo-text font-medium">JSON output</p>
+          <button data-copy="vibereport --json" class="copy-btn text-tokyo-dimmed hover:text-tokyo-cyan transition-colors" title="Copy to clipboard">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>
+          </button>
+        </div>
+        <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport --json</code></pre>
+        <div class="px-4 pb-4 text-xs text-tokyo-dimmed">
+          Machine-readable output for CI pipelines and scripts.
+        </div>
+      </div>
+
+      <!-- --svg -->
+      <div class="mb-4 rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-tokyo-border/20 flex items-center justify-between">
+          <p class="text-xs text-tokyo-text font-medium">SVG export</p>
+          <button data-copy="vibereport --svg report.svg" class="copy-btn text-tokyo-dimmed hover:text-tokyo-cyan transition-colors" title="Copy to clipboard">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>
+          </button>
+        </div>
+        <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport --svg report.svg</code></pre>
+        <div class="px-4 pb-4 text-xs text-tokyo-dimmed">
+          Generates a shareable image. Combine with other flags freely.
+        </div>
+      </div>
+
+      <!-- Combining -->
+      <div class="rounded-xl bg-tokyo-bg/60 border border-tokyo-border/20 p-4 text-sm">
+        <p class="text-tokyo-dimmed">
+          Flags can be combined: <code class="text-tokyo-green">vibereport --since 6m --json --no-share</code>
+        </p>
       </div>
     </div>
 
@@ -294,57 +369,6 @@ vibereport /path/to/repo</code></pre>
           <p class="text-xs text-tokyo-dimmed">
             <span class="text-[#bb9af7] font-medium">Boomer AI</span>: AI% &gt; 0 but no config files found (<code class="text-tokyo-green">.claude/</code>, <code class="text-tokyo-green">.cursorrules</code>, <code class="text-tokyo-green">AGENTS.md</code>, etc.)
           </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Output formats -->
-    <div id="output-formats" class="mb-14 scroll-mt-20">
-      <h2 class="text-xl font-bold text-tokyo-text mb-4 flex items-center gap-2">
-        <span class="text-tokyo-cyan">#</span> Output formats
-      </h2>
-
-      <div class="space-y-3">
-        <!-- Terminal -->
-        <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
-          <div class="px-4 py-2.5 border-b border-tokyo-border/20 flex items-center justify-between">
-            <p class="text-xs text-tokyo-text font-medium">Terminal (default)</p>
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-tokyo-dimmed">ASCII art + colors</span>
-              <button data-copy="vibereport" class="copy-btn text-tokyo-dimmed hover:text-tokyo-cyan transition-colors" title="Copy to clipboard">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>
-              </button>
-            </div>
-          </div>
-          <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport</code></pre>
-        </div>
-
-        <!-- JSON -->
-        <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
-          <div class="px-4 py-2.5 border-b border-tokyo-border/20 flex items-center justify-between">
-            <p class="text-xs text-tokyo-text font-medium">JSON</p>
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-tokyo-dimmed">Machine-readable</span>
-              <button data-copy="vibereport --json" class="copy-btn text-tokyo-dimmed hover:text-tokyo-cyan transition-colors" title="Copy to clipboard">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>
-              </button>
-            </div>
-          </div>
-          <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport --json</code></pre>
-        </div>
-
-        <!-- SVG -->
-        <div class="rounded-xl bg-tokyo-surface/60 border border-tokyo-border/30 overflow-hidden">
-          <div class="px-4 py-2.5 border-b border-tokyo-border/20 flex items-center justify-between">
-            <p class="text-xs text-tokyo-text font-medium">SVG</p>
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-tokyo-dimmed">Shareable image</span>
-              <button data-copy="vibereport --svg" class="copy-btn text-tokyo-dimmed hover:text-tokyo-cyan transition-colors" title="Copy to clipboard">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>
-              </button>
-            </div>
-          </div>
-          <pre class="p-4 text-sm text-tokyo-green overflow-x-auto"><code>vibereport --svg</code></pre>
         </div>
       </div>
     </div>
