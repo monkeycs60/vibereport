@@ -68,10 +68,190 @@ Project: https://github.com/monkeycs60/vibereport — PRs with new detection pat
 
 ---
 
-## Strategy notes
+## Strategy notes (Posts 1 & 2)
 
 - **Post 1** hook: personal story → discussion → people scan their repos out of curiosity
 - **Post 2** hook: genuine technical challenge → attracts contributors + people who know patterns we missed → positions project as community-driven, not a product
 - Post at peak hours: weekday mornings US East (14h-16h Paris time)
 - Don't cross-post same day — space them 2-3 days apart
 - Engage genuinely in comments, don't be defensive about detection limitations
+
+---
+
+## Post 3 — "The vibe score" (r/vibecoding)
+
+**Subreddit:** r/vibecoding
+
+**Title:** `95% of my commits are AI-generated. I know because I built a tool that measures it.`
+
+**Body:**
+
+So I've been vibe coding basically everything for the past few months. Claude Code does the commits, the refactors, the tests, everything. At some point I looked at my git log and thought... how much of this is actually me?
+
+Turns out you can measure it. Tools like Claude Code, Aider, Copilot, Codex &mdash; they all leave signatures in your commits. Co-Authored-By trailers, specific email patterns, message prefixes. It's all there if you parse it.
+
+So I built a CLI that scans any git repo and gives you a breakdown. AI% per tool, a "Vibe Score" that checks for other stuff too (no tests? .env in git? node_modules committed? lol), and a timeline showing your AI usage over time.
+
+I ran it on my own project: **95% AI commits**. Vibe Score through the roof. I got the S+ grade which is... not the flex I thought it was going to be.
+
+Then I got curious and started scanning bigger repos. Right now I'm tracking 1,000 top GitHub repos daily. Some interesting numbers:
+
+- Average across top GH repos: ~2.8% AI (lower bound, since Windsurf/Copilot inline don't leave traces)
+- Anthropic's own claude-code repo: 13% AI
+- Some indie projects: 60-80% AI
+
+The gap between "serious OSS" and "solo dev vibing" is massive and honestly kind of funny.
+
+You can scan your own repo in like 10 seconds: https://vibereport.dev (there's also `cargo install vibereport` or a quick curl install)
+
+What's your AI% looking like? Genuinely curious where this sub lands.
+
+---
+
+## Post 4 — "Claude Code's commit signature" (r/ClaudeCode)
+
+**Subreddit:** r/ClaudeCode
+
+**Title:** `I've been tracking Claude Code's Co-Authored-By signatures across 1,000 GitHub repos. Some findings.`
+
+**Body:**
+
+If you use Claude Code you probably noticed the `Co-Authored-By: Claude <noreply@anthropic.com>` trailer it adds to every commit. Most people don't think about it much but it's basically a publicly auditable trace of AI usage in any repo.
+
+I built a tool that parses these signatures across repos. Started with my own stuff (95% AI commits, no surprises there) and then scaled up to tracking 1,000 top GitHub repos daily.
+
+Some things I found:
+
+**Claude Code is the most visible AI tool in open source right now.** Not necessarily the most used &mdash; but the most detectable, because the Co-Authored-By trailer is always there. Cursor also signs commits but it's less consistent. Aider does it. Codex does it. Gemini CLI too.
+
+**Anthropic's own repos eat their own dogfood.** Their claude-code repo shows 13% AI-authored commits. Which is lower than I expected honestly.
+
+**The tools that don't sign commits are invisible.** Windsurf, Copilot inline, Kilo Code &mdash; zero trace. So the ~2.8% average I'm measuring across top repos is a hard floor. Real number is definitely higher.
+
+**The tool also checks for other stuff** beyond AI% &mdash; missing tests, .env files in git, no CI/CD, hardcoded secrets, etc. Gives you a composite "Vibe Score" and roasts you accordingly. My repo got an S+ which means I'm basically the poster child for vibe coding.
+
+If you wanna check your own repos: `curl -fsSL https://vibereport.dev/install.sh | sh` then just `vibereport` in your project. Also works with `vibereport github:user/repo` for remote repos.
+
+Open source: https://github.com/monkeycs60/vibereport
+
+Curious what Claude Code % you guys are seeing on your projects.
+
+---
+
+## Post 5 — "The uncomfortable data" (r/vibecoding) — PROVOCATIVE VERSION
+
+**Subreddit:** r/vibecoding
+
+**Title:** `Everyone here talks like they ship entire apps with AI. I scanned 1,000 top GitHub repos — it's 2.8%. Someone's lying.`
+
+**Body:**
+
+I keep seeing posts like "built my whole SaaS in a weekend with Claude" or "shipped my app without writing a single line". Cool. So where is all this AI code?
+
+I've been scanning 1,000 top GitHub repos daily for the past two months. I parse commit signatures — Claude Code, Cursor, Aider, Copilot, Codex, Gemini — they all leave traces. Co-Authored-By trailers, email patterns, message prefixes.
+
+The number? **2.8% of commits are AI-authored.** Across the top 1,000 repos on GitHub.
+
+Now I know what you're thinking — "Windsurf doesn't sign commits, Copilot inline doesn't either, so the real number is higher." You're right. It's a lower bound. But even if you 5x it we're at 14%. That's a far cry from "95% AI generated" that everyone claims in their tweets.
+
+Some numbers that tell a story:
+- Anthropic's own claude-code repo: 13%
+- Most well-maintained OSS: 0-3%
+- My own project: 95% (yes I'm the problem)
+
+So what's going on? A few theories:
+1. The people actually shipping serious software aren't vibe coding nearly as much as this sub thinks
+2. Most vibe-coded projects never make it to public repos (they die on someone's laptop)
+3. We're in a massive hype bubble and the gap between Twitter/Reddit vibes and actual codebases is enormous
+
+I'm not saying vibe coding doesn't work — I literally vibe coded the tool that measured all this. But the data doesn't match the energy in here.
+
+What's your actual AI%? Not the number you'd tweet about — the real one. You can check in 10s: https://vibereport.dev
+
+---
+
+---
+
+## Post 6 — "The loop" (r/vibecoding) — FINAL VERSION ★
+
+**Subreddit:** r/vibecoding
+
+**Format:** Image post (screenshot as main image)
+
+**Title:** `I vibe coded a tool that tells you how vibe coded your app is.`
+
+**Image:** Screenshot of https://www.vibereport.dev/report?id=fc044ba764bf1f99ab9d3518 — crop to show the 95%, Grade B, roast "Half human, half machine.", and the score breakdown badges. Dark theme looks great as-is.
+
+**Body** (Rule 3 compliant — includes tools, process, and build insights):
+
+At some point I stopped writing commit messages entirely. Claude Code does it for me, I review (almost) nothing, I just let it push. I'm guessing most of you do the same.
+
+So I got curious... is there a way to actually measure how much of a codebase is vibe coded? Turns out some AI tools leave signatures in your commits. 'Co-Authored-By' trailers, specific emails, message prefixes. It's all there if you parse it.
+
+I built a CLI in Rust (I'm a JS dev, don't ask me why) that scans any repo and gives you the breakdown. Not just AI% though: it also checks for stuff like tests, linting, CI, .env files committed, node_modules in git, that kind of thing. Gives you a "Vibe Score" from 0 to 100 (higher = more chaotic). And a roast because why not.
+
+**How it works under the hood:** the CLI uses `gix` (a pure Rust git implementation) to walk through your entire commit history. It pattern-matches on 6 AI tools — Claude Code, Cursor, Aider, Codex, GitHub Copilot, Gemini CLI — each with their own signatures. Then it checks your project structure for common vibe coding red flags. The whole thing runs locally, no data sent anywhere.
+
+**Tools used:** Claude Code did ~95% of the work. I basically described what I wanted and iterated. Rust for the CLI, Astro + Tailwind for the web frontend, Cloudflare Workers for the API.
+
+Right now it only detects tools that leave traces in commits — but I know that's just the tip of the iceberg. Windsurf, Copilot inline, Kilo Code... they don't sign anything. If you know of other patterns or heuristics to detect AI-generated code (commit timing, file change patterns, whatever), I'm all ears. PRs welcome: https://github.com/monkeycs60/vibereport
+
+Ran it on itself. 95% AI written. 57/100 on the vibe scale. Roast: "Half human, half machine."
+
+Check yours, you can scan online without even installing the CLI: https://vibereport.dev
+
+---
+
+## Post 7 — Tweet for X Vibe Coding community
+
+**Community:** Vibe Coding (https://x.com/i/communities/1898129646782497027)
+
+**Tweet:**
+
+I vibe coded a tool that tells you how vibe coded your app is.
+
+It rated itself 95% AI. Roast: "Half human, half machine."
+
+How it works: AI tools (Claude Code, Cursor, Aider, Copilot, Codex, Gemini) leave signatures in your commits. The CLI parses those + checks for missing tests, .env in git, no CI, etc.
+
+Built with Claude Code. Written in Rust (I'm a JS dev).
+
+Check yours: vibereport.dev
+
+#vibecoding #claudecode #anthropic
+
+**Image:** Same screenshot as Post 6.
+
+---
+
+## Strategy notes (all posts)
+
+- **Post 6** (r/vibecoding): ★ **USE THIS ONE** — absurd meta loop, image post, Rule 3 compliant (includes tools + process + insights)
+- **Post 7** (X Vibe Coding community): short version for Twitter, same screenshot, hashtags
+- **Post 4** (r/ClaudeCode): technical angle on Co-Authored-By, data-driven, CLI-focused — use 2-3 days after Post 6
+- **Post 3** (r/vibecoding): safe show & tell version — backup if Post 6 doesn't land
+- **Post 5** (r/vibecoding): provocative/confrontational version — killed, was too preachy
+- Posts 1 & 2: original drafts for r/programming — save for later
+
+### Screenshot instructions for Posts 6 & 7
+1. Go to https://www.vibereport.dev/report?id=fc044ba764bf1f99ab9d3518
+2. Crop from the "VIBE REPORT" header down to the roast "Half human, half machine." (include the score breakdown badges)
+3. The 95% in red, Grade B, and the roast are the 3 visual hooks — all must be visible
+4. Dark background = stands out in Reddit feed and X dark mode
+
+
+At some point I stopped writing commit messages entirely. Claude Code does it for me, I review (almost) nothing, I just let it push. I'm guessing most of you do the same.
+
+So I got curious... is there a way to actually measure how much of a codebase is vibe coded? Turns out some AI tools leave signatures in your commits. 'Co-Authored-By' trailers, specific emails, message prefixes. It's all there if you parse it.
+
+I built a CLI in Rust (why note?) that scans any repo and gives you the breakdown. Not just AI% though: it also checks for stuff like tests, linting, CI, .env files committed, node_modules in git, that kind of thing. Gives you a "Vibe Score" from 0 to 100 (higher = more chaotic). And a roast.
+
+How it works under the hood: the CLI uses `gix` (a pure Rust git implementation) to walk through your entire commit history. It pattern-matches on 6 AI tools: Claude Code, Cursor, Aider, Codex, GitHub Copilot, Gemini CLI, each with their own signatures. Then it checks your project structure for common vibe coding red flags. The whole thing runs locally, no data sent anywhere.
+
+Right now it only detects tools that leave traces in commits... but I know that's just the tip of the iceberg. Windsurf, Copilot inline, Kilo Code... they don't sign anything. If you know of other patterns or heuristics to detect AI-generated code (commit timing, file change patterns, whatever), I'm all ears. PRs welcome: https://github.com/monkeycs60/vibereport
+
+Tools used: Claude Code did ~95% of the work. Rust for the CLI, Astro for the frontend, Cloudflare Workers for the API.
+
+Ran it on itself. 95% AI written. 57/100 on the vibe scale. Not even bad.
+
+Check yours, you can scan online without even installing the CLI: https://vibereport.dev
