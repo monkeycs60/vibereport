@@ -142,7 +142,8 @@ const dotR = snapshots.length > 30 ? 2.5 : snapshots.length > 12 ? 3 : 3.5;
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function formatDate(d: string): string {
   const parts = d.split('-');
-  return `${monthNames[parseInt(parts[1], 10) - 1]} ${parseInt(parts[2], 10)}`;
+  const month = monthNames[parseInt(parts[1], 10) - 1];
+  return parts[2] ? `${month} ${parseInt(parts[2], 10)}` : month;
 }
 function formatNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
