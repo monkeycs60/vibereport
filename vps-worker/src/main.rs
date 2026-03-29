@@ -542,7 +542,7 @@ async fn main() {
 
     let state = Arc::new(AppState {
         user_semaphore: Semaphore::new(2),
-        index_semaphore: Semaphore::new(10),
+        index_semaphore: Semaphore::new(4),
         auth_token,
         vibereport_bin,
         api_url,
