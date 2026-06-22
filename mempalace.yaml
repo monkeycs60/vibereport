@@ -1,0 +1,20 @@
+wing: vibereport
+rooms:
+- name: vps_worker
+  description: Files from vps-worker/
+- name: documentation
+  description: Files from docs/
+- name: target
+  description: Files from target/
+- name: web
+  description: Files from web/
+- name: scripts
+  description: Files from scripts/
+- name: src
+  description: Files from src/
+- name: backend
+  description: Files from api/
+- name: frontend
+  description: Files from frontend/
+- name: general
+  description: Files that don't fit other rooms
